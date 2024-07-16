@@ -124,6 +124,7 @@ bool SampleGUI::guiRayTracing()
   auto  Normal = ImGuiH::Control::Flags::Normal;
   bool  changed{false};
   auto& rtxState(_se->m_rtxState);
+  int mode;
 
   changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 1, 10);
   changed |= GuiH::Slider("Samples Per Frame", "", &rtxState.maxSamples, nullptr, Normal, 1, 10);
@@ -139,6 +140,7 @@ bool SampleGUI::guiRayTracing()
   static bool bAnyHit = true;
   if(_se->m_rndMethod == SampleExample::RndMethod::eRtxPipeline)
   {
+    auto rtx = dynamic_cast<RtxPipeline*>(_se->m_pRender[_se->m_rndMethod]);
     if(GuiH::Checkbox("Enable AnyHit", "AnyHit is used for double sided, cutout opacity, but can be slower when all objects are opaque",
                       &bAnyHit, nullptr))
     {
@@ -147,6 +149,17 @@ bool SampleGUI::guiRayTracing()
       rtx->useAnyHit(bAnyHit);
       changed = true;
     }
+    if(GuiH::Selection("Sorting Mode", "Display unique values of material", rtx->getSortingMode(), nullptr, Normal,{
+                                   "No Debug",
+                                   "HitObject",}))
+    {
+      vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
+      _se->reloadRender();
+      changed = true;
+    }
+
+
+
   }
 
   GuiH::Group<bool>("Debugging", false, [&] {

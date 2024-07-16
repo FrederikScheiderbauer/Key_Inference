@@ -31,7 +31,7 @@
 #include "rtx_pipeline.hpp"
 #include "scene.hpp"
 #include "tools.hpp"
-
+#include "nvvk/specialization.hpp"
 // Shaders
 #include "autogen/pathtrace.rahit.h"
 #include "autogen/pathtrace.rchit.h"
@@ -81,8 +81,8 @@ void RtxPipeline::create(const VkExtent2D& size, const std::vector<VkDescriptorS
   MilliTimer timer;
   LOGI("Create RtxPipeline");
 
-  m_nbHit = 1;  //scene->getStat().nbMaterials;
 
+  m_nbHit = 1;  //scene->getStat().nbMaterials;
   createPipelineLayout(rtDescSetLayouts);
   createPipeline();
   timer.print();
@@ -135,6 +135,11 @@ void RtxPipeline::createPipeline()
   stage.module    = CompileAndCreateShaderModule("pathtrace.rgen",shaderc_raygen_shader);
   stage.stage     = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
   stages[eRaygen] = stage;
+
+  nvvk::Specialization specialization;
+  specialization.add(0,m_sortingMode);
+  stages[eRaygen].pSpecializationInfo = specialization.getSpecialization();
+
 
   // Miss
   stage.module  = CompileAndCreateShaderModule("pathtrace.rmiss",shaderc_miss_shader);
@@ -300,4 +305,11 @@ VkShaderModule RtxPipeline::CompileAndCreateShaderModule(std::string filename, s
   VkShaderModule resultModule = glslCompiler.createModule(m_device,compResult);
 
   return resultModule;
+}
+
+
+void RtxPipeline::setSortingMode(int index)
+{
+  m_sortingMode = index;
+  createPipeline();
 }

@@ -29,6 +29,13 @@
 layout(location = 0) rayPayloadInEXT PtPayload prd;
 hitAttributeEXT vec2 bary;
 
+
+vec3 performShading()
+{
+  return vec3(0);
+}
+
+
 void main()
 {
   //prd.seed;
@@ -39,4 +46,9 @@ void main()
   prd.baryCoord           = bary;
   prd.objectToWorld       = gl_ObjectToWorldEXT;
   prd.worldToObject       = gl_WorldToObjectEXT;
+
+  performShading();
+
 }
+
+

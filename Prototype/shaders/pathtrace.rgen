@@ -39,6 +39,8 @@
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_debug_printf : enable
 
+#extension GL_NV_shader_invocation_reorder : enable
+
 #include "host_device.h"
 
 #include "globals.glsl"
@@ -46,6 +48,11 @@
 
 layout(location = 0) rayPayloadEXT PtPayload prd;
 layout(location = 1) rayPayloadEXT ShadowHitPayload shadow_payload;
+
+
+layout(location = 0) hitObjectAttributeNV vec3 objAttribs;
+
+layout(constant_id = 0) const int SORTING_MODE = 0;
 
 
 layout(push_constant) uniform _RtxState
@@ -74,7 +81,22 @@ void main()
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
+
     pixelColor += samplePixel(imageCoords, imageRes);  // See pathtrace.glsl
+  /*
+    Ray ray = samplePrimaryRay(imageCoords, imageRes);
+
+    vec3 radiance = PathTrace(ray);
+
+    // Removing fireflies
+    float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
+    if(lum > rtxState.fireflyClampThreshold)
+    {
+      radiance *= rtxState.fireflyClampThreshold / lum;
+    }
+
+    pixelColor += radiance;
+*/
   }
 
   pixelColor /= rtxState.maxSamples;

@@ -115,6 +115,11 @@ int main(int argc, char** argv)
   // Extra queues for parallel load/build
   contextInfo.addRequestedQueue(contextInfo.defaultQueueGCT, 1, 1.0f);  // Loading scene - mipmap generation
 
+  //add device Extension for SER own modification
+	VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV reorderFeature{
+	VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV };
+	contextInfo.addDeviceExtension(VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, false, &reorderFeature);
+
 // #define ENABLE_GPU_PRINTF //   Enabling printf in shaders
 // #extension GL_EXT_debug_printf
 // debugPrintfEXT("");

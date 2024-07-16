@@ -100,6 +100,11 @@ START_ENUM(DebugMode)
   eRayDir    = 11,  //
   eHeatmap   = 12   //
 END_ENUM();
+
+START_ENUM(SortingMode)
+  eNoSorting = 0,   //
+  eHitObject = 1    //
+END_ENUM();
 // clang-format on
 
 

@@ -385,3 +385,33 @@ vec3 samplePixel(ivec2 imageCoords, ivec2 sizeImage)
 
   return radiance;
 }
+
+
+Ray samplePrimaryRay(ivec2 imageCoords, ivec2 sizeImage)
+{
+  // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
+  vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(prd.seed), rand(prd.seed));
+
+  // Compute sampling position between [-1 .. 1]
+  const vec2 pixelCenter = vec2(imageCoords) + subpixel_jitter;
+  const vec2 inUV        = pixelCenter / vec2(sizeImage.xy);
+  vec2       d           = inUV * 2.0 - 1.0;
+
+  // Compute ray origin and direction
+  vec4 origin    = sceneCamera.viewInverse * vec4(0, 0, 0, 1);
+  vec4 target    = sceneCamera.projInverse * vec4(d.x, d.y, 1, 1);
+  vec4 direction = sceneCamera.viewInverse * vec4(normalize(target.xyz), 0);
+
+  // Depth-of-Field
+  vec3  focalPoint        = sceneCamera.focalDist * direction.xyz;
+  float cam_r1            = rand(prd.seed) * M_TWO_PI;
+  float cam_r2            = rand(prd.seed) * sceneCamera.aperture;
+  vec4  cam_right         = sceneCamera.viewInverse * vec4(1, 0, 0, 0);
+  vec4  cam_up            = sceneCamera.viewInverse * vec4(0, 1, 0, 0);
+  vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
+  vec3  finalRayDir       = normalize(focalPoint - randomAperturePos);
+
+  Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir);
+
+  return ray;
+}

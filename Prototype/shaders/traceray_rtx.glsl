@@ -31,18 +31,44 @@ void ClosestHit(Ray r)
 {
   uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
   prd.hitT      = INFINITY;
-  traceRayEXT(topLevelAS,   // acceleration structure
-              rayFlags,     // rayFlags
-              0xFF,         // cullMask
-              0,            // sbtRecordOffset
-              0,            // sbtRecordStride
-              0,            // missIndex
-              r.origin,     // ray origin
-              0.0,          // ray min range
-              r.direction,  // ray direction
-              INFINITY,     // ray max range
-              0             // payload (location = 0)
-  );
+
+  if(SORTING_MODE == eNoSorting)
+  {
+    traceRayEXT(topLevelAS,   // acceleration structure
+                rayFlags,     // rayFlags
+                0xFF,         // cullMask
+                0,            // sbtRecordOffset
+                0,            // sbtRecordStride
+                0,            // missIndex
+                r.origin,     // ray origin
+                0.0,          // ray min range
+                r.direction,  // ray direction
+                INFINITY,     // ray max range
+                0             // payload (location = 0)
+    );
+  }
+  else if(SORTING_MODE == eHitObject){
+    hitObjectNV hObj;
+    hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
+    hitObjectTraceRayNV(hObj,
+                topLevelAS,
+                rayFlags,
+                0xFF,
+                0,
+                0,
+                0,
+                r.origin,
+                0.0,
+                r.direction,
+                INFINITY,
+                0);
+
+    reorderThreadNV(hObj);
+    hitObjectExecuteShaderNV(hObj, 0);
+  } 
+
+
+  
 }
 
 

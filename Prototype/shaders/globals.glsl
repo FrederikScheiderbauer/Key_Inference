@@ -60,6 +60,10 @@ struct PtPayload
   vec2   baryCoord;
   mat4x3 objectToWorld;
   mat4x3 worldToObject;
+  vec3 radiance;
+  vec3 throughput;
+  vec3 absorption;
+
 };
 
 struct ShadowHitPayload
