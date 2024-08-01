@@ -152,6 +152,7 @@ bool Scene::loadGltfScene(const std::string& filename, tinygltf::Model& tmodel)
   LOGW("%s", warn.c_str());
 
   return true;
+  
 }
 
 //--------------------------------------------------------------------------------------------------

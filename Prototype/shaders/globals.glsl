@@ -29,6 +29,7 @@
 #define INFINITY 1e32
 #define EPS 0.0001
 
+#include "host_device.h"
 //precision highp int;
 precision highp float;
 
@@ -50,6 +51,7 @@ struct Ray
 };
 
 
+
 struct PtPayload
 {
   uint   seed;
@@ -63,8 +65,14 @@ struct PtPayload
   vec3 radiance;
   vec3 throughput;
   vec3 absorption;
-
+  int depth;
+  Ray r;
+  uint64_t shadeTiming;
+  uint64_t rtTiming;
+  uint64_t sortTiming;
 };
+
+
 
 struct ShadowHitPayload
 {

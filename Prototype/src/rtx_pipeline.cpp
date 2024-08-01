@@ -138,6 +138,8 @@ void RtxPipeline::createPipeline()
 
   nvvk::Specialization specialization;
   specialization.add(0,m_sortingMode);
+  specialization.add(1,m_numCoherenceBits);
+  specialization.add(2,m_enableProfiling);
   stages[eRaygen].pSpecializationInfo = specialization.getSpecialization();
 
 
@@ -311,5 +313,11 @@ VkShaderModule RtxPipeline::CompileAndCreateShaderModule(std::string filename, s
 void RtxPipeline::setSortingMode(int index)
 {
   m_sortingMode = index;
+  createPipeline();
+}
+
+void RtxPipeline::enableProfiling(bool enable)
+{
+  m_enableProfiling = enable;
   createPipeline();
 }

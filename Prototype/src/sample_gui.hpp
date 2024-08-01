@@ -47,4 +47,17 @@ private:
   bool guiGpuMeasures();
 
   SampleExample* _se{nullptr};
+  std::vector<ProfilingStats> m_stats;
+  //each enum stands for the prfilign of a certain time characteristic
+  enum ProfilingMode{
+    eSort = 0, //time for sorting
+    eShade = 1, //time for shading
+    eRayTraversal = 2 // time for ray traversal
+  };
+
+  int m_pMode{eShade};
+  int histogramFlags =0;
+  
+  std::vector<float> rttime;
+  bool showHistogram{false};
 };

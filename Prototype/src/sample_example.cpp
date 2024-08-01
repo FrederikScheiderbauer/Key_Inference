@@ -26,6 +26,7 @@
 
 #include <filesystem>
 #include <thread>
+#include <iostream>
 
 #define VMA_IMPLEMENTATION
 
@@ -58,6 +59,7 @@ void SampleExample::setup(const VkInstance&               instance,
 
   // Memory allocator for buffers and images
   m_alloc.init(instance, device, physicalDevice);
+  m_staging.init(m_alloc.getMemoryAllocator());
 
   m_debug.setup(m_device);
 
@@ -80,6 +82,9 @@ void SampleExample::setup(const VkInstance&               instance,
   {
     r->setup(m_device, physicalDevice, queues[eTransfer].familyIndex, &m_alloc);
   }
+
+  std::vector<ProfilingStats> stats;
+  profilingStats.push_back(stats);
 }
 
 
@@ -259,6 +264,8 @@ void SampleExample::createUniformBuffer()
   NAME_VK(m_sunAndSkyBuffer.buffer);
 }
 
+
+
 //--------------------------------------------------------------------------------------------------
 // Destroying all allocations
 //
@@ -266,6 +273,7 @@ void SampleExample::destroyResources()
 {
   // Resources
   m_alloc.destroy(m_sunAndSkyBuffer);
+  //m_alloc.destroy(m_profilingBuffer);
 
   // Descriptors
   vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
@@ -287,7 +295,9 @@ void SampleExample::destroyResources()
   }
 
   // Memory
+  m_staging.deinit();
   m_alloc.deinit();
+
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -426,14 +436,65 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   VkExtent2D render_size = m_renderRegion.extent;
   if(m_descaling)
     render_size = VkExtent2D{render_size.width / m_descalingLevel, render_size.height / m_descalingLevel};
+  
 
   m_rtxState.size = {render_size.width, render_size.height};
+
+
+  m_rtxState.maxSceneExtent = length(m_scene.getScene().m_dimensions.max - m_scene.getScene().m_dimensions.min);
+  m_rtxState.SceneMax = m_scene.getScene().m_dimensions.max;
+  m_rtxState.SceneMin = m_scene.getScene().m_dimensions.min;
+
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
   m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
                               {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
 
+
+
+//receive profiling data from gpu
+size_t render_extent = render_size.width * render_size.height;
+
+
+if(render_extent != profilingStats[0].size())
+{
+  profilingStats[0].resize(render_extent);
+  std::cout << "resizing profiling Buffer" << std::endl;
+}
+
+if(m_rtxState.frame <1)
+{
+  std::vector<ProfilingStats> newStats;
+  profilingStats[0] = newStats;
+  profilingStats[0].resize(render_extent);
+}
+
+  int row = m_rtxState.frame % render_size.height;
+  size_t size = render_size.width * sizeof(ProfilingStats);
+  size_t offset = row * size;
+
+  const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,offset,size);
+  //const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,render_size.width* render_size.height* sizeof(ProfilingStats));
+  
+  ProfilingStats* statsPointer = (ProfilingStats*) data;
+  //memcpy(profilingStats.data()+(render_size.width*row),data,size);
+  //
+
+  for(uint64_t i = 0; i < render_size.width; i++)
+  {
+    float divisor = 1.0f/(float)(m_rtxState.frame +1);
+
+    profilingStats[0][(render_size.width*row) + i] = statsPointer[i];
+  }
+
+  
+
+
+  m_staging.releaseResources();
+
+
+  //
 
   // For automatic brightness tonemapping
   if(m_offscreen.m_tonemapper.autoExposure)

@@ -47,12 +47,15 @@
 #include "layouts.glsl"
 
 layout(location = 0) rayPayloadEXT PtPayload prd;
+
 layout(location = 1) rayPayloadEXT ShadowHitPayload shadow_payload;
 
 
 layout(location = 0) hitObjectAttributeNV vec3 objAttribs;
 
 layout(constant_id = 0) const int SORTING_MODE = 0;
+layout(constant_id = 1) const int NUM_COHERENCE_BITS = 32;
+layout(constant_id = 2) const bool USE_PROFILING = false;
 
 
 layout(push_constant) uniform _RtxState
@@ -66,14 +69,22 @@ layout(push_constant) uniform _RtxState
 #include "pathtrace.glsl"
 #include "random.glsl"
 #include "common.glsl"
+#include "profiler.glsl"
 
-
+void  determineBestSortingKey()
+{
+  
+}
 void main()
 {
+  setupProfiler();
+
   uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
   ivec2 imageRes    = rtxState.size;
   ivec2 imageCoords = ivec2(gl_LaunchIDEXT.xy);
+
+  int ID = imageCoords.y * imageRes.x + imageCoords.x;
 
   // Initialize the seed for the random number
   prd.seed = initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, rtxState.frame);
@@ -83,23 +94,29 @@ void main()
   {
 
     pixelColor += samplePixel(imageCoords, imageRes);  // See pathtrace.glsl
-  /*
-    Ray ray = samplePrimaryRay(imageCoords, imageRes);
+  }
 
-    vec3 radiance = PathTrace(ray);
+  profilingStats[ID].shadeTiming.abs_time += prd.shadeTiming;
+  profilingStats[ID].sortTiming.abs_time += prd.sortTiming;
+  profilingStats[ID].rtTiming.abs_time += prd.rtTiming;
 
-    // Removing fireflies
-    float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));
-    if(lum > rtxState.fireflyClampThreshold)
-    {
-      radiance *= rtxState.fireflyClampThreshold / lum;
-    }
+  if(rtxState.frame < 1)
+  {
 
-    pixelColor += radiance;
-*/
+    profilingStats[ID].shadeTiming.avg_time = prd.shadeTiming;
+    profilingStats[ID].sortTiming.avg_time = prd.sortTiming;
+    profilingStats[ID].rtTiming.avg_time = prd.rtTiming;
+  }
+  else {
+
+    profilingStats[ID].shadeTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
+    profilingStats[ID].sortTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
+    profilingStats[ID].rtTiming.avg_time =profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
   }
 
   pixelColor /= rtxState.maxSamples;
+
+
 
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)
@@ -108,7 +125,12 @@ void main()
     float    low  = rtxState.minHeatmap;
     float    high = rtxState.maxHeatmap;
     float    val  = clamp((float(end - start) - low) / (high - low), 0.0, 1.0);
+    
+
     pixelColor    = temperature(val);
+    //pixelColor    = temperature(val2);
+    imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+    return;
 
     // Wrap & SM visualization
     // pixelColor = temperature(float(gl_SMIDNV) / float(gl_SMCountNV - 1)) * float(gl_WarpIDNV) / float(gl_WarpsPerSMNV - 1);
@@ -124,6 +146,7 @@ void main()
   }
   else
   {
+    //profilingStats[ID] = prd.timings;
     // First frame, replace the value in the buffer
     imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
   }

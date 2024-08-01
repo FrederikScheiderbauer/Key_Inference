@@ -36,6 +36,8 @@
 #include "sample_example.hpp"
 #include "sample_gui.hpp"
 #include "tools.hpp"
+#include "iostream"
+#include <algorithm>
 
 #include "nvml_monitor.hpp"
 #ifdef _WIN32
@@ -124,9 +126,8 @@ bool SampleGUI::guiRayTracing()
   auto  Normal = ImGuiH::Control::Flags::Normal;
   bool  changed{false};
   auto& rtxState(_se->m_rtxState);
-  int mode;
 
-  changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 1, 10);
+  changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 1, 40);
   changed |= GuiH::Slider("Samples Per Frame", "", &rtxState.maxSamples, nullptr, Normal, 1, 10);
   changed |= GuiH::Slider("Max Iteration ", "", &_se->m_maxFrames, nullptr, Normal, 1, 1000);
   changed |= GuiH::Slider("De-scaling ",
@@ -138,6 +139,7 @@ bool SampleGUI::guiRayTracing()
   changed |= GuiH::Selection("Pbr Mode", "PBR material model", &rtxState.pbrMode, nullptr, Normal, {"Disney", "Gltf"});
 
   static bool bAnyHit = true;
+  static bool bProfiling = false;
   if(_se->m_rndMethod == SampleExample::RndMethod::eRtxPipeline)
   {
     auto rtx = dynamic_cast<RtxPipeline*>(_se->m_pRender[_se->m_rndMethod]);
@@ -149,18 +151,93 @@ bool SampleGUI::guiRayTracing()
       rtx->useAnyHit(bAnyHit);
       changed = true;
     }
+    if(GuiH::Checkbox("Enable Profiling", "",
+                      &bProfiling, nullptr))
+    {
+      auto rtx = dynamic_cast<RtxPipeline*>(_se->m_pRender[_se->m_rndMethod]);
+      vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
+      rtx->enableProfiling(bProfiling);
+      changed = true;
+    }
+    /*
+      eNoSorting   = 0, //
+      eHitObject   = 1, //
+      eOrigin      = 2, //
+      eReis        = 3, // Sort by Origin Direction
+      eCosta       = 4, // Sort by Direction Origin
+      eAila        = 5, // Sort by Origin Direction Interleaved
+      eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
+      eEndPointEst = 7  // Sort by Origin and estimated ray endpoint
+    */
     if(GuiH::Selection("Sorting Mode", "Display unique values of material", rtx->getSortingMode(), nullptr, Normal,{
-                                   "No Debug",
-                                   "HitObject",}))
+                                   "No Sorting",
+                                   "HitObject",
+                                   "Sort by Origin",
+                                   "Sort by Origin&Direction",
+                                   "Sort by Origin&Direction reversed",
+                                   "Sort by Origin&Direction interleaved",
+                                   "Twopoint sorting",
+                                   "Endpoint Estimation",
+                                   "Adaptive Endpoint Estimation",}))
     {
       vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
       _se->reloadRender();
       changed = true;
     }
-
-
-
+    if(GuiH::Slider("Number Coherence Bits", "", rtx->getNumCoherenceBits(), nullptr, Normal, 1, 300))
+    {
+      vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
+      _se->reloadRender();
+      changed = true;
+    }
   }
+
+  GuiH::Group<bool>("Profiling", false, [&] {
+
+    ImGui::RadioButton("Shading Time",&m_pMode,eShade);
+    ImGui::SameLine();
+    ImGui::RadioButton("Sorting Time",&m_pMode,eSort);
+    ImGui::SameLine();
+    ImGui::RadioButton("Ray Traversal Time",&m_pMode,eRayTraversal);
+
+
+    GuiH::Checkbox("show Histogram","",&showHistogram);
+    
+    
+    
+    if(showHistogram)
+    {
+      ImGui::RadioButton("Standard",&histogramFlags,ImPlotHistogramFlags_None);
+      ImGui::SameLine();
+      ImGui::RadioButton("Density",&histogramFlags,ImPlotHistogramFlags_Density);
+      ImGui::SameLine();
+      ImGui::RadioButton("Cumulative",&histogramFlags,ImPlotHistogramFlags_Cumulative);
+
+      if(ImPlot::BeginPlot("First Plot"))
+      {
+      ImPlot::SetupAxes("Time","#Threads");
+      std::vector<float> rttime;
+      for (ProfilingStats timing : _se->profilingStats[0])
+      {
+        if(m_pMode == eShade)
+        {
+          rttime.emplace_back((float)timing.shadeTiming.avg_time);
+        }
+        if(m_pMode == eSort)
+        {
+          rttime.emplace_back((float)timing.sortTiming.avg_time);
+        }
+        if(m_pMode == eRayTraversal)
+        {
+          rttime.emplace_back((float)timing.rtTiming.avg_time);
+        }
+      }
+      ImPlot::PlotHistogram("first histogram",rttime.data(),rttime.size(),ImPlotBin_Sqrt,(0.5),ImPlotRange(),histogramFlags);
+      ImPlot::EndPlot();
+      }
+    }
+    return false;
+  });
 
   GuiH::Group<bool>("Debugging", false, [&] {
     changed |= GuiH::Selection("Debug Mode", "Display unique values of material", &rtxState.debugging_mode, nullptr, Normal,
@@ -187,6 +264,11 @@ bool SampleGUI::guiRayTracing()
       changed |= GuiH::Drag("Max Heat map", "Maximum timing value, above this value it will be red",
                             &rtxState.maxHeatmap, nullptr, Normal, 0, 1'000'000, 100);
     }
+
+    
+    
+
+    
     return changed;
   });
 

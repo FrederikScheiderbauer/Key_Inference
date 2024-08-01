@@ -68,6 +68,7 @@ typedef nvvk::ResourceAllocatorDedicated Allocator;
 
 #include "imgui_internal.h"
 #include "queue.hpp"
+#include "nvvk/stagingmemorymanager_vk.hpp"
 
 class SampleGUI;
 
@@ -104,6 +105,7 @@ public:
   bool isBusy() { return m_busy; }
   void createDescriptorSetLayout();
   void createUniformBuffer();
+  void createUniformBufferProfiling();
   void destroyResources();
   void loadAssets(const char* filename);
   void loadEnvironmentHdr(const std::string& hdrFilename);
@@ -138,6 +140,9 @@ public:
   RndMethod                    m_rndMethod{eNone};
 
   nvvk::Buffer m_sunAndSkyBuffer;
+  nvvk::Buffer m_profilingBuffer;
+
+  std::vector<std::vector<ProfilingStats>> profilingStats;
 
   // Graphic pipeline
   VkDescriptorPool            m_descPool{VK_NULL_HANDLE};
@@ -146,6 +151,7 @@ public:
   nvvk::DescriptorSetBindings m_bind;
 
   Allocator       m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::StagingMemoryManager m_staging;
   nvvk::DebugUtil m_debug;  // Utility to name objects
 
 

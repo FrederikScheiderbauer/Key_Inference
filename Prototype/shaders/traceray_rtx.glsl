@@ -22,7 +22,10 @@
 // The Ray Query pipeline implementation of thoses functions are in traceray_rq.
 // This is used in pathtrace.glsl (Ray-Generation shader)
 
+#ifndef TRACERAY_RTX_GLSL
+#define TRACERAY_RTX_GLSL
 
+#include "keyCreation.glsl"
 //-----------------------------------------------------------------------
 // Shoot a ray an return the information of the closest hit, in the
 // PtPayload structure (PRD)
@@ -31,9 +34,15 @@ void ClosestHit(Ray r)
 {
   uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
   prd.hitT      = INFINITY;
+  uint64_t start; 
+  uint64_t end; 
+  int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
+
+
 
   if(SORTING_MODE == eNoSorting)
   {
+    start = clockRealtimeEXT(); 
     traceRayEXT(topLevelAS,   // acceleration structure
                 rayFlags,     // rayFlags
                 0xFF,         // cullMask
@@ -46,8 +55,23 @@ void ClosestHit(Ray r)
                 INFINITY,     // ray max range
                 0             // payload (location = 0)
     );
+    end = clockRealtimeEXT();
+    uint64_t duration = end -start;
+    prd.rtTiming += duration;
   }
-  else if(SORTING_MODE == eHitObject){
+  else{
+
+    uint64_t sortingStart; 
+    uint64_t sortingEnd; 
+
+    if(SORTING_MODE != eHitObject && SORTING_MODE != eTwoPoint)
+    {
+      sortingStart = clockRealtimeEXT();
+      uint code = createSortingKey(SORTING_MODE,prd,r);
+      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      sortingEnd = clockRealtimeEXT();
+    }
+    start = clockRealtimeEXT(); 
     hitObjectNV hObj;
     hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
     hitObjectTraceRayNV(hObj,
@@ -62,15 +86,30 @@ void ClosestHit(Ray r)
                 r.direction,
                 INFINITY,
                 0);
+    end = clockRealtimeEXT();
+    uint64_t duration = end -start;
+    prd.rtTiming += duration;
 
-    reorderThreadNV(hObj);
+    if(SORTING_MODE == eHitObject)
+    {
+      sortingStart = clockRealtimeEXT();
+      reorderThreadNV(hObj);
+      sortingEnd = clockRealtimeEXT();
+    }
+    if(SORTING_MODE == eTwoPoint)
+    {
+      sortingStart = clockRealtimeEXT();
+      uint code = createSortingKey(SORTING_MODE,prd,r);
+      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      sortingEnd = clockRealtimeEXT();
+
+    }
     hitObjectExecuteShaderNV(hObj, 0);
+    uint64_t sortingDuration = sortingEnd -sortingStart;
+    prd.sortTiming += sortingDuration;
+
   } 
-
-
-  
 }
-
 
 //-----------------------------------------------------------------------
 // Shadow ray - return true if a ray hits anything
@@ -97,3 +136,6 @@ bool AnyHit(Ray r, float maxDist)
   // add to ray contribution from next event estimation
   return shadow_payload.isHit;
 }
+
+
+#endif

@@ -51,6 +51,7 @@ void RenderOutput::setup(const VkDevice& device, const VkPhysicalDevice& physica
 void RenderOutput::destroy()
 {
   m_pAlloc->destroy(m_offscreenColor);
+  m_pAlloc->destroy(m_profilingBuffer);
 
   vkDestroyPipeline(m_device, m_postPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_postPipelineLayout, nullptr);
@@ -62,6 +63,7 @@ void RenderOutput::create(const VkExtent2D& size, const VkRenderPass& renderPass
 {
   MilliTimer timer;
   LOGI("Create Offscreen");
+  createProfilingBuffer(size);
   createOffscreenRender(size);
   createPostPipeline(renderPass);
   timer.print();
@@ -69,7 +71,9 @@ void RenderOutput::create(const VkExtent2D& size, const VkRenderPass& renderPass
 
 void RenderOutput::update(const VkExtent2D& size)
 {
+  createProfilingBuffer(size);
   createOffscreenRender(size);
+  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -111,6 +115,27 @@ void RenderOutput::createOffscreenRender(const VkExtent2D& size)
 
   createPostDescriptor();
 }
+
+//--------------------------------------------------------------------------------------------------
+// Creating the uniform buffer holding the Sun&Sky structure
+// - Buffer is host visible and will be set each frame
+//
+void RenderOutput::createProfilingBuffer(const VkExtent2D& size)
+{
+  if(m_profilingBuffer.buffer != VK_NULL_HANDLE)
+  {
+    m_pAlloc->destroy(m_profilingBuffer);
+  }
+  m_profilingBuffer = m_pAlloc->createBuffer(sizeof(ProfilingStats)* size.width * size.height, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT| VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  
+  //m_profilingBuffer = m_pAlloc->createBuffer(sizeof(ProfilingStats)* size.width * size.height, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+  //                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+  
+  //NAME_VK(m_sunAndSkyBuffer.buffer);
+}
+
 
 //--------------------------------------------------------------------------------------------------
 // The pipeline is how things are rendered, which shaders, type of primitives, depth test and more
@@ -158,13 +183,17 @@ void RenderOutput::createPostDescriptor()
   bind.addBinding({OutputBindings::eSampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT});
   bind.addBinding({OutputBindings::eStore, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
                    VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR});
+  bind.addBinding({OutputBindings::eProfiling, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                   VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR});
   m_postDescSetLayout = bind.createLayout(m_device);
   m_postDescPool      = bind.createPool(m_device);
   m_postDescSet       = nvvk::allocateDescriptorSet(m_device, m_postDescPool, m_postDescSetLayout);
 
   std::vector<VkWriteDescriptorSet> writes;
+  VkDescriptorBufferInfo            profilingDesc{m_profilingBuffer.buffer, 0, VK_WHOLE_SIZE};
   writes.emplace_back(bind.makeWrite(m_postDescSet, OutputBindings::eSampler, &m_offscreenColor.descriptor));  // This is use by the tonemapper
   writes.emplace_back(bind.makeWrite(m_postDescSet, OutputBindings::eStore, &m_offscreenColor.descriptor));  // This will be used by the ray trace to write the image
+  writes.emplace_back(bind.makeWrite(m_postDescSet, OutputBindings::eProfiling,&profilingDesc));  // This will be used by the ray trace to write the image
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
@@ -190,4 +219,10 @@ void RenderOutput::genMipmap(VkCommandBuffer cmdBuf)
   LABEL_SCOPE_VK(cmdBuf);
   nvvk::cmdGenerateMipmaps(cmdBuf, m_offscreenColor.image, m_offscreenColorFormat, m_size, nvvk::mipLevels(m_size), 1,
                            VK_IMAGE_LAYOUT_GENERAL);
+}
+
+
+void* RenderOutput::getProfilingData(){
+  void* data = m_pAlloc->map(m_profilingBuffer);
+  return data;
 }

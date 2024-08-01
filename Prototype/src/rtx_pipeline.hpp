@@ -54,8 +54,10 @@ public:
   void create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene) override;
   void run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, const std::vector<VkDescriptorSet>& descSets) override;
   void useAnyHit(bool enable);
-  void setSortingMode(int sortindModeIndex);
+  void setSortingMode(int sortingModeIndex);
   int* getSortingMode() {return &m_sortingMode;};
+  int* getNumCoherenceBits() {return &m_numCoherenceBits;};
+  void enableProfiling(bool enable);
 
   const std::string name() override { return std::string("Rtx"); }
 
@@ -66,7 +68,9 @@ private:
 
   uint32_t m_nbHit{1};
   bool     m_enableAnyhit{true};
-  int      m_sortingMode{0};
+  int      m_sortingMode{1};
+  int      m_numCoherenceBits{32};
+  bool     m_enableProfiling{false};
 
 private:
   // Setup

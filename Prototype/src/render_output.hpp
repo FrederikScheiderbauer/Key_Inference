@@ -58,11 +58,14 @@ public:
 
   VkDescriptorSetLayout getDescLayout() { return m_postDescSetLayout; }
   VkDescriptorSet       getDescSet() { return m_postDescSet; }
+  nvvk::Buffer          getProfilingBuffer() { return m_profilingBuffer; }
+  void*                 getProfilingData();
 
 private:
   void createOffscreenRender(const VkExtent2D& size);
   void createPostPipeline(const VkRenderPass& renderPass);
   void createPostDescriptor();
+  void createProfilingBuffer(const VkExtent2D& size);
 
   VkDescriptorPool      m_postDescPool{VK_NULL_HANDLE};
   VkDescriptorSetLayout m_postDescSetLayout{VK_NULL_HANDLE};
@@ -70,6 +73,7 @@ private:
   VkPipeline            m_postPipeline{VK_NULL_HANDLE};
   VkPipelineLayout      m_postPipelineLayout{VK_NULL_HANDLE};
   nvvk::Texture         m_offscreenColor;
+  nvvk::Buffer          m_profilingBuffer;
   //VkFormat m_offscreenColorFormat{VkFormat::eR16G16B16A16Sfloat};  // Darkening the scene over 5000 iterations
   VkFormat m_offscreenColorFormat{VK_FORMAT_R32G32B32A32_SFLOAT};
   VkFormat m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};  // Will be replaced by best supported format

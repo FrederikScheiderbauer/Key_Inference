@@ -189,8 +189,10 @@ int main(int argc, char** argv)
     sample.m_busyReasonText = "Loading Scene";
     sample.loadScene(nvh::findFile(sceneFile, defaultSearchPaths, true));
     sample.createUniformBuffer();
+    
     sample.createDescriptorSetLayout();
     sample.createRender(SampleExample::eRtxPipeline);
+    //sample.createUniformBufferProfiling();
     sample.resetFrame();
     sample.m_busy = false;
   }).detach();

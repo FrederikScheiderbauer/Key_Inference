@@ -142,7 +142,8 @@ void AccelStructure::createTopLevelAS(nvh::GltfScene& gltfScene)
     nvh::GltfMaterial&         mat      = gltfScene.m_materials[primMesh.materialIndex];
 
     // Always opaque, no need to use anyhit (faster)
-    if(mat.alphaMode == 0 || (mat.baseColorFactor.w == 1.0f && mat.baseColorTexture == -1))
+    //if(mat.alphaMode == 0 || (mat.baseColorFactor.w == 1.0f && mat.baseColorTexture == -1))
+    if((mat.baseColorFactor.w == 1.0f && mat.baseColorTexture == -1))
       flags |= VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
     // Need to skip the cull flag in traceray_rtx for double sided materials
     if(mat.doubleSided == 1)

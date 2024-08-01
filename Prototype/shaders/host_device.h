@@ -65,8 +65,9 @@ END_ENUM();
 
 // Output image - Set 1
 START_ENUM(OutputBindings)
-  eSampler = 0,  // As sampler
-  eStore   = 1   // As storage
+  eSampler = 0,   // As sampler
+  eStore   = 1,   // As storage
+  eProfiling = 2  //for profiling
 END_ENUM();
 
 // Scene Data - Set 2
@@ -98,12 +99,22 @@ START_ENUM(DebugMode)
   eRadiance  = 9,   //
   eWeight    = 10,  //
   eRayDir    = 11,  //
-  eHeatmap   = 12   //
+  eHeatmap   = 12,  //
+  eSorting   = 13,  //
+  eShading   = 14,  //
+  eTraversal = 15  //
 END_ENUM();
 
 START_ENUM(SortingMode)
-  eNoSorting = 0,   //
-  eHitObject = 1    //
+  eNoSorting   = 0, //
+  eHitObject   = 1, //
+  eOrigin      = 2, //
+  eReis        = 3, // Sort by Origin Direction
+  eCosta       = 4, // Sort by Direction Origin
+  eAila        = 5, // Sort by Origin Direction Interleaved
+  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
+  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
+  eEndEstAdaptive = 8 //
 END_ENUM();
 // clang-format on
 
@@ -198,6 +209,9 @@ struct RtxState
   ivec2 size;                   // rendering size
   int   minHeatmap;             // Debug mode - heat map
   int   maxHeatmap;
+  float maxSceneExtent;
+  vec3 SceneMax;
+  vec3 SceneMin;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -283,6 +297,32 @@ struct SunAndSky
   int   y_is_up;
   int   physically_scaled_sun;
   int   in_use;
+};
+
+struct ShadingTiming
+{
+  uint64_t avg_time;
+  uint64_t abs_time;
+};
+
+struct SortingTiming
+{
+  uint64_t avg_time;
+  uint64_t abs_time;
+};
+
+
+struct RayTraversalTiming
+{
+  uint64_t avg_time;
+  uint64_t abs_time;
+};
+
+struct ProfilingStats
+{
+  ShadingTiming      shadeTiming;
+  RayTraversalTiming rtTiming;
+  SortingTiming      sortTiming;
 };
 
 

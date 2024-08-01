@@ -186,7 +186,12 @@ VisibilityContribution DirectLight(in Ray r, in State state)
 
   return contrib;
 }
-
+void shadingEnd(uint64_t start)
+{
+  uint64_t shadingEnd = clockRealtimeEXT();
+  uint64_t shadingDuration = shadingEnd - start;
+  prd.shadeTiming += shadingDuration;
+}
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
@@ -200,6 +205,7 @@ vec3 PathTrace(Ray r)
   {
     ClosestHit(r);
 
+    uint64_t shadingStart = clockRealtimeEXT();
     // Hitting the environment
     if(prd.hitT == INFINITY)
     {
@@ -224,6 +230,8 @@ vec3 PathTrace(Ray r)
         env     = texture(environmentTexture, uv).rgb;
       }
       // Done sampling return
+      shadingEnd(shadingStart);
+      
       return radiance + (env * rtxState.hdrMultiplier * throughput);
     }
 
@@ -258,6 +266,7 @@ vec3 PathTrace(Ray r)
     // KHR_materials_unlit
     if(state.mat.unlit)
     {
+      shadingEnd(shadingStart);
       return radiance + state.mat.albedo * throughput;
     }
 
@@ -292,6 +301,8 @@ vec3 PathTrace(Ray r)
     }
     else
     {
+
+      shadingEnd(shadingStart);
       break;
     }
 
@@ -330,12 +341,16 @@ vec3 PathTrace(Ray r)
       }
     }
 
+    shadingEnd(shadingStart);
 
 #ifdef RR
     if(rand(prd.seed) >= rrPcont)
       break;                // paths with low throughput that won't contribute
     throughput /= rrPcont;  // boost the energy of the non-terminated paths
 #endif
+
+
+    
   }
 
 
