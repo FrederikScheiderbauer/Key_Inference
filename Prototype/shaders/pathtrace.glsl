@@ -202,8 +202,10 @@ vec3 PathTrace(Ray r)
   vec3 absorption = vec3(0.0);
 
   for(int depth = 0; depth < rtxState.maxDepth; depth++)
-  {
-    ClosestHit(r);
+  { 
+
+    ClosestHit(r,depth);
+    
 
     uint64_t shadingStart = clockRealtimeEXT();
     // Hitting the environment
@@ -353,7 +355,7 @@ vec3 PathTrace(Ray r)
     
   }
 
-
+  
   return radiance;
 }
 

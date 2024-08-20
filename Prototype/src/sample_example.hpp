@@ -123,6 +123,7 @@ public:
   void updateFrame();
   void updateHdrDescriptors();
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
+  void prepareProfilingData(VkCommandBuffer cmdBuf);
 
   Scene              m_scene;
   AccelStructure     m_accelStruct;
@@ -141,6 +142,15 @@ public:
 
   nvvk::Buffer m_sunAndSkyBuffer;
   nvvk::Buffer m_profilingBuffer;
+
+  int bestSortMode = eNoSorting;
+  int DELAY_FRAMES = 4;
+  uint recoveredFrame[5] = {0,0,0,0,0};
+  uint64_t recovered_time = 0;
+  double avg_full_time = 0.0;
+  TimingData latest_timeData;
+
+
 
   std::vector<std::vector<ProfilingStats>> profilingStats;
 

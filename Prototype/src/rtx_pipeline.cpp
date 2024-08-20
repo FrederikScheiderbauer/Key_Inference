@@ -271,6 +271,7 @@ void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvv
 
 
   auto& regions = m_sbtWrapper.getRegions();
+  
   vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
 }
 

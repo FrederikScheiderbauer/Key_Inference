@@ -105,7 +105,7 @@ bool HitTest(in rayQueryEXT rayQuery, in Ray r)
 // Shoot a ray an return the information of the closest hit, in the
 // PtPayload structure (PRD)
 //
-void ClosestHit(Ray r)
+void ClosestHit(Ray r,int  depth)
 {
   uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;  // gl_RayFlagsNoneEXT
   prd.hitT      = INFINITY;
@@ -144,6 +144,12 @@ void ClosestHit(Ray r)
     prd.objectToWorld       = rayQueryGetIntersectionObjectToWorldEXT(rayQuery, true);
     prd.worldToObject       = rayQueryGetIntersectionWorldToObjectEXT(rayQuery, true);
   }
+}
+
+//A Dummy function to keep compatibility with Ray Query
+void ClosestHitRandom(Ray r, uint random_s_mode)
+{
+  //ClosestHit(r);
 }
 
 

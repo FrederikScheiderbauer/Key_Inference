@@ -38,6 +38,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_debug_printf : enable
+#extension GL_EXT_shader_atomic_int64 : enable
 
 #extension GL_NV_shader_invocation_reorder : enable
 
@@ -53,9 +54,9 @@ layout(location = 1) rayPayloadEXT ShadowHitPayload shadow_payload;
 
 layout(location = 0) hitObjectAttributeNV vec3 objAttribs;
 
-layout(constant_id = 0) const int SORTING_MODE = 0;
+layout(constant_id = 0) const uint SORTING_MODE = 0;
 layout(constant_id = 1) const int NUM_COHERENCE_BITS = 32;
-layout(constant_id = 2) const bool USE_PROFILING = false;
+layout(constant_id = 2) const bool USE_PROFILING = true;
 
 
 layout(push_constant) uniform _RtxState
@@ -71,15 +72,49 @@ layout(push_constant) uniform _RtxState
 #include "common.glsl"
 #include "profiler.glsl"
 
-void  determineBestSortingKey()
+
+uint chooseSortMode()
 {
-  
+  uint v1 = pcg(prd.seed);
+  uint v2 = pcg(prd.seed);
+  uint s_Mode = tea(v1,v2) % (eNumSortModes-1);
+  return s_Mode;
 }
+
+/*
+START_ENUM(SortingMode)
+  eNoSorting   = 0, //
+  eHitObject   = 1, //
+  eOrigin      = 2, //
+  eReis        = 3, // Sort by Origin Direction
+  eCosta       = 4, // Sort by Direction Origin
+  eAila        = 5, // Sort by Origin Direction Interleaved
+  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
+  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
+  eEndEstAdaptive = 8, //
+  eInferKey    = 9,
+  eNumSortModes = 10 //  Number of actual Sorting Modes
+END_ENUM();
+*/
+
+/*
+  uint activeMode;
+  uint64_t noSortTime;
+  uint64_t hitObjectTime;
+  uint64_t originTime;
+  uint64_t reisTime;
+  uint64_t costaTime;
+  uint64_t ailaTime;
+  uint64_t endPointEstTime;
+  uint64_t endEstAdaptiveTime;
+*/
+
 void main()
 {
   setupProfiler();
+  
+  uint accumulationFrames = 20;
 
-  uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
   ivec2 imageRes    = rtxState.size;
   ivec2 imageCoords = ivec2(gl_LaunchIDEXT.xy);
@@ -88,40 +123,89 @@ void main()
 
   // Initialize the seed for the random number
   prd.seed = initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, rtxState.frame);
+  uint sortMode;
+  if(SORTING_MODE == eInferKey)
+  {
+    //if first frame use random sorting Mode and accumulate
+    //if(rtxState.frame < accumulationFrames)
+    //{
+      //sortMode = chooseSortMode();
+      sortMode = rtxState.frame % (eNumSortModes-1);
+    //}
+    /*
+    else {
+      sortMode = 1;
+    }
+    */
+    if(rtxState.frame < 1)
+    {
+      resetTimings(ID);
+      
+    }
+  }
 
+
+  uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
 
     pixelColor += samplePixel(imageCoords, imageRes);  // See pathtrace.glsl
   }
+  uint64_t end  = clockRealtimeEXT();
+  uint64_t duration = end -start;
 
-  profilingStats[ID].shadeTiming.abs_time += prd.shadeTiming;
-  profilingStats[ID].sortTiming.abs_time += prd.sortTiming;
-  profilingStats[ID].rtTiming.abs_time += prd.rtTiming;
 
-  if(rtxState.frame < 1)
+  if(USE_PROFILING)
   {
 
-    profilingStats[ID].shadeTiming.avg_time = prd.shadeTiming;
-    profilingStats[ID].sortTiming.avg_time = prd.sortTiming;
-    profilingStats[ID].rtTiming.avg_time = prd.rtTiming;
-  }
-  else {
+    profilingStats[ID].shadeTiming.abs_time += prd.shadeTiming;
+    profilingStats[ID].sortTiming.abs_time += prd.sortTiming;
+    profilingStats[ID].rtTiming.abs_time += prd.rtTiming;
+    profilingStats[ID].traceTiming.abs_time += duration;
 
-    profilingStats[ID].shadeTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
-    profilingStats[ID].sortTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
-    profilingStats[ID].rtTiming.avg_time =profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
+    if(rtxState.frame < 1)
+    {
+
+      profilingStats[ID].shadeTiming.avg_time = prd.shadeTiming;
+      profilingStats[ID].sortTiming.avg_time = prd.sortTiming;
+      profilingStats[ID].rtTiming.avg_time = prd.rtTiming;
+      profilingStats[ID].traceTiming.avg_time = duration;
+    }
+    else {
+      
+      profilingStats[ID].shadeTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
+      profilingStats[ID].sortTiming.avg_time = profilingStats[ID].sortTiming.abs_time / (rtxState.frame+1);
+      profilingStats[ID].rtTiming.avg_time = profilingStats[ID].rtTiming.abs_time / (rtxState.frame+1);
+      profilingStats[ID].traceTiming.avg_time = profilingStats[ID].traceTiming.abs_time / (rtxState.frame+1);
+    }
   }
 
   pixelColor /= rtxState.maxSamples;
 
 
 
+  if(SORTING_MODE==eInferKey)
+  {
+    //if(rtxState.frame < accumulationFrames && prd.hitT != INFINITY)
+    //{
+      accumulateSamplesAdd(sortMode,duration);
+      //accumulateSamplesMax(sortMode,duration);
+    //}
+    timeData.frame = uint(rtxState.frame);
+
+    atomicAdd(timeData.full_time,duration);
+    atomicAdd(timeData.full_time_threads,1);
+    
+    
+    //atomicMax(timeData.full_time,duration);
+    //atomicMax(timeData.full_time_threads,1);
+  }
+
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)
   {
-    uint64_t end  = clockRealtimeEXT();
+    
     float    low  = rtxState.minHeatmap;
     float    high = rtxState.maxHeatmap;
     float    val  = clamp((float(end - start) - low) / (high - low), 0.0, 1.0);
@@ -146,8 +230,9 @@ void main()
   }
   else
   {
-    //profilingStats[ID] = prd.timings;
     // First frame, replace the value in the buffer
     imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
+
   }
+
 }

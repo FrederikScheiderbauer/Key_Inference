@@ -373,19 +373,13 @@ uint SortingKeyEndPointEstimationAdaptive(vec3 origin, vec3 direction,float RayL
 }
 
 
-uint sortingKeyAdaptive()
-{
-    return 0;
-}
 
 
 
 
 
 
-
-
-uint createSortingKey(int sortingMode,PtPayload prd, Ray ray)
+uint createSortingKey(uint sortingMode,PtPayload prd, Ray ray)
 {
     uint code;
     if(sortingMode == eOrigin)

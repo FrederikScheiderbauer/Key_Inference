@@ -45,9 +45,12 @@ private:
   bool guiStatistics();
   bool guiProfiler(nvvk::ProfilerVK& profiler);
   bool guiGpuMeasures();
+  void prepareTimeData(TimingData data);
 
   SampleExample* _se{nullptr};
   std::vector<ProfilingStats> m_stats;
+  nvh::Profiler::TimerInfo stored_timers[5];
+  int stored_frames[4];
   //each enum stands for the prfilign of a certain time characteristic
   enum ProfilingMode{
     eSort = 0, //time for sorting
@@ -57,6 +60,7 @@ private:
 
   int m_pMode{eShade};
   int histogramFlags =0;
+  bool inferSortingKey = false;
   
   std::vector<float> rttime;
   bool showHistogram{false};

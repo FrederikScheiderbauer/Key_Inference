@@ -26,19 +26,18 @@
 #define TRACERAY_RTX_GLSL
 
 #include "keyCreation.glsl"
+#include "random.glsl"
 //-----------------------------------------------------------------------
 // Shoot a ray an return the information of the closest hit, in the
 // PtPayload structure (PRD)
 //
-void ClosestHit(Ray r)
+void ClosestHit(Ray r,int  depth)
 {
   uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
   prd.hitT      = INFINITY;
   uint64_t start; 
   uint64_t end; 
   int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
-
-
 
   if(SORTING_MODE == eNoSorting)
   {
@@ -68,6 +67,7 @@ void ClosestHit(Ray r)
     {
       sortingStart = clockRealtimeEXT();
       uint code = createSortingKey(SORTING_MODE,prd,r);
+
       reorderThreadNV(code,NUM_COHERENCE_BITS);
       sortingEnd = clockRealtimeEXT();
     }
@@ -100,6 +100,93 @@ void ClosestHit(Ray r)
     {
       sortingStart = clockRealtimeEXT();
       uint code = createSortingKey(SORTING_MODE,prd,r);
+      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      sortingEnd = clockRealtimeEXT();
+
+    }
+    hitObjectExecuteShaderNV(hObj, 0);
+    uint64_t sortingDuration = sortingEnd -sortingStart;
+    prd.sortTiming += sortingDuration;
+
+  } 
+}
+
+//-----------------------------------------------------------------------
+// Shoot a ray an return the information of the closest hit, in the
+// PtPayload structure (PRD)
+// use random sortingMode
+//
+void ClosestHitRandom(Ray r, uint s_Mode)
+{
+
+  uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
+  prd.hitT      = INFINITY;
+  uint64_t start; 
+  uint64_t end; 
+  int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
+
+
+
+  if(s_Mode == eNoSorting)
+  {
+    start = clockRealtimeEXT(); 
+    traceRayEXT(topLevelAS,   // acceleration structure
+                rayFlags,     // rayFlags
+                0xFF,         // cullMask
+                0,            // sbtRecordOffset
+                0,            // sbtRecordStride
+                0,            // missIndex
+                r.origin,     // ray origin
+                0.0,          // ray min range
+                r.direction,  // ray direction
+                INFINITY,     // ray max range
+                0             // payload (location = 0)
+    );
+    end = clockRealtimeEXT();
+    uint64_t duration = end -start;
+    prd.rtTiming += duration;
+  }
+  else{
+
+    uint64_t sortingStart; 
+    uint64_t sortingEnd; 
+
+    if(s_Mode != eHitObject && s_Mode != eTwoPoint)
+    {
+      sortingStart = clockRealtimeEXT();
+      uint code = createSortingKey(s_Mode,prd,r);
+      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      sortingEnd = clockRealtimeEXT();
+    }
+    start = clockRealtimeEXT(); 
+    hitObjectNV hObj;
+    hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
+    hitObjectTraceRayNV(hObj,
+                topLevelAS,
+                rayFlags,
+                0xFF,
+                0,
+                0,
+                0,
+                r.origin,
+                0.0,
+                r.direction,
+                INFINITY,
+                0);
+    end = clockRealtimeEXT();
+    uint64_t duration = end -start;
+    prd.rtTiming += duration;
+
+    if(s_Mode == eHitObject)
+    {
+      sortingStart = clockRealtimeEXT();
+      reorderThreadNV(hObj);
+      sortingEnd = clockRealtimeEXT();
+    }
+    if(s_Mode == eTwoPoint)
+    {
+      sortingStart = clockRealtimeEXT();
+      uint code = createSortingKey(s_Mode,prd,r);
       reorderThreadNV(code,NUM_COHERENCE_BITS);
       sortingEnd = clockRealtimeEXT();
 

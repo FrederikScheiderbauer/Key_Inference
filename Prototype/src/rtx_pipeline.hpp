@@ -60,6 +60,7 @@ public:
   void enableProfiling(bool enable);
 
   const std::string name() override { return std::string("Rtx"); }
+  bool     m_enableProfiling{false};
 
 private:
   void createPipeline();
@@ -68,9 +69,9 @@ private:
 
   uint32_t m_nbHit{1};
   bool     m_enableAnyhit{true};
-  int      m_sortingMode{1};
+  int      m_sortingMode{9};
   int      m_numCoherenceBits{32};
-  bool     m_enableProfiling{false};
+
 
 private:
   // Setup

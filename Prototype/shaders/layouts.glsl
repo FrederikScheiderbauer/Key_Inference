@@ -52,6 +52,8 @@ layout(set = S_ENV, binding = eImpSamples,  scalar)		buffer _EnvAccel		{ EnvAcce
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };
 
+//
+layout(set = S_OUT,binding = eTiming, scalar) buffer _Timing{TimingData timeData;};
 // clang-format on
 
 

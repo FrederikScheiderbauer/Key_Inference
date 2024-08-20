@@ -266,6 +266,8 @@ int main(int argc, char** argv)
     // Submit for display
     vkEndCommandBuffer(cmdBuf);
     sample.submitFrame();
+    
+
 
     CameraManip.updateAnim();
   }

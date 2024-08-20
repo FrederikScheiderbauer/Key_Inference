@@ -44,7 +44,7 @@ layout(push_constant) uniform _RtxState
 {
   RtxState rtxState;
 };
-
+layout(constant_id = 0) const uint SORTING_MODE = 0;
 
 #include "globals.glsl"
 

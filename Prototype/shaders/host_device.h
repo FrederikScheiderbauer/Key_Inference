@@ -55,7 +55,7 @@ START_ENUM(SetBindings)
   S_OUT   = 1,  // Offscreen output image
   S_SCENE = 2,  // Scene data
   S_ENV   = 3,  // Environment / Sun & Sky
-  S_WF    = 4   // Wavefront extra data
+  S_WF    = 4  // Wavefront extra data
 END_ENUM();
 
 // Acceleration Structure - Set 0
@@ -67,7 +67,8 @@ END_ENUM();
 START_ENUM(OutputBindings)
   eSampler = 0,   // As sampler
   eStore   = 1,   // As storage
-  eProfiling = 2  //for profiling
+  eProfiling = 2,  //for profiling
+  eTiming = 3
 END_ENUM();
 
 // Scene Data - Set 2
@@ -86,6 +87,7 @@ START_ENUM(EnvBindings)
   eImpSamples = 2 
 END_ENUM();
 
+
 START_ENUM(DebugMode)
   eNoDebug   = 0,   //
   eBaseColor = 1,   //
@@ -102,7 +104,8 @@ START_ENUM(DebugMode)
   eHeatmap   = 12,  //
   eSorting   = 13,  //
   eShading   = 14,  //
-  eTraversal = 15  //
+  eTraversal = 15,  //
+  eTracing   = 16
 END_ENUM();
 
 START_ENUM(SortingMode)
@@ -114,7 +117,9 @@ START_ENUM(SortingMode)
   eAila        = 5, // Sort by Origin Direction Interleaved
   eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
   eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
-  eEndEstAdaptive = 8 //
+  eEndEstAdaptive = 8, //
+  eInferKey    = 9,
+  eNumSortModes = 10 //  Number of actual Sorting Modes
 END_ENUM();
 // clang-format on
 
@@ -212,6 +217,7 @@ struct RtxState
   float maxSceneExtent;
   vec3 SceneMax;
   vec3 SceneMin;
+  uint activeSortMode;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -312,7 +318,12 @@ struct SortingTiming
 };
 
 
-struct RayTraversalTiming
+struct ASTraversalTiming
+{
+  uint64_t avg_time;
+  uint64_t abs_time;
+};
+struct RayTracingTiming
 {
   uint64_t avg_time;
   uint64_t abs_time;
@@ -321,8 +332,50 @@ struct RayTraversalTiming
 struct ProfilingStats
 {
   ShadingTiming      shadeTiming;
-  RayTraversalTiming rtTiming;
+  ASTraversalTiming  rtTiming;
   SortingTiming      sortTiming;
+  RayTracingTiming   traceTiming;
+};
+
+/*
+START_ENUM(SortingMode)
+  eNoSorting   = 0, //
+  eHitObject   = 1, //
+  eOrigin      = 2, //
+  eReis        = 3, // Sort by Origin Direction
+  eCosta       = 4, // Sort by Direction Origin
+  eAila        = 5, // Sort by Origin Direction Interleaved
+  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
+  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
+  eEndEstAdaptive = 8, //
+  eNumSortModes = 9 // 
+END_ENUM();
+*/
+
+struct TimingData
+{
+  uint frame;
+  uint64_t full_time;
+  uint full_time_threads;
+  uint activeMode;
+  uint64_t noSortTime;
+  uint noSortThreads;
+  uint64_t hitObjectTime;
+  uint hitObjectThreads;
+  uint64_t originTime;
+  uint originThreads;
+  uint64_t reisTime;
+  uint reisThreads;
+  uint64_t costaTime;
+  uint costaThreads;
+  uint64_t ailaTime;
+  uint ailaThreads;
+  uint64_t twoPointTime;
+  uint twoPointThreads;
+  uint64_t endPointEstTime;
+  uint endPointEstThreads;
+  uint64_t endEstAdaptiveTime;
+  uint endEstAdaptiveThreads;
 };
 
 

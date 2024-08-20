@@ -27,6 +27,8 @@
 #include <filesystem>
 #include <thread>
 #include <iostream>
+#include <algorithm>
+#include <limits>
 
 #define VMA_IMPLEMENTATION
 
@@ -84,7 +86,11 @@ void SampleExample::setup(const VkInstance&               instance,
   }
 
   std::vector<ProfilingStats> stats;
-  profilingStats.push_back(stats);
+  for(int i = 0; i < eNumSortModes;i++)
+  {
+    profilingStats.push_back(stats);
+  }
+  
 }
 
 
@@ -236,9 +242,11 @@ void SampleExample::createDescriptorSetLayout()
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eSunSky, &sunskyDesc));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eHdr, &m_skydome.m_texHdr.descriptor));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eImpSamples, &accelImpSmpl));
+  //writes.emplace_back(m_bind.makeWrite(m_descSet, SortingBindings::eTiming, &timingDesc));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
+
 
 //--------------------------------------------------------------------------------------------------
 // Setting the descriptor for the HDR and its acceleration structure
@@ -260,7 +268,7 @@ void SampleExample::updateHdrDescriptors()
 void SampleExample::createUniformBuffer()
 {
   m_sunAndSkyBuffer = m_alloc.createBuffer(sizeof(SunAndSky), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);                               
   NAME_VK(m_sunAndSkyBuffer.buffer);
 }
 
@@ -448,51 +456,139 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
+  
+  auto render_ID = profiler.beginSection("Render Section",cmdBuf);
   m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
                               {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
+  profiler.endSection(render_ID,cmdBuf);
+
+
+/*
+START_ENUM(SortingMode)
+  eNoSorting   = 0, //
+  eHitObject   = 1, //
+  eOrigin      = 2, //
+  eReis        = 3, // Sort by Origin Direction
+  eCosta       = 4, // Sort by Direction Origin
+  eAila        = 5, // Sort by Origin Direction Interleaved
+  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
+  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
+  eEndEstAdaptive = 8, //
+  eInferKey    = 9,
+  eNumSortModes = 10 //  Number of actual Sorting Modes
+END_ENUM();
+*/
+auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+int sortMode = *(rtx->getSortingMode());
+
+if(sortMode == eInferKey)
+{
+
+  const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getTimingBuffer().buffer,0,sizeof(TimingData));
+  TimingData timeData;
+  memcpy(&timeData,data,sizeof(TimingData));
+
+  latest_timeData = timeData;
+  int correctFrame = 0;
+  recoveredFrame[correctFrame] = timeData.frame;
+
+  recovered_time =timeData.originTime;
+  uint64_t one = 1;
+  avg_full_time = (recovered_time/glm::max(timeData.originThreads,1u));
+
+  //m_staging.releaseResources();
+  std::vector<float> test;
+  if(m_rtxState.frame > 10)
+  {
+    test.emplace_back(timeData.noSortTime / timeData.noSortThreads);
+    test.emplace_back(timeData.hitObjectTime/ timeData.hitObjectThreads);
+    test.emplace_back(timeData.originTime/ timeData.originThreads);
+    test.emplace_back(timeData.reisTime/ timeData.reisThreads);
+    test.emplace_back(timeData.costaTime/ timeData.costaThreads);
+    test.emplace_back(timeData.ailaTime/ timeData.ailaThreads);
+    test.emplace_back(timeData.twoPointTime/ timeData.twoPointThreads);
+    test.emplace_back(timeData.endPointEstTime/ timeData.endPointEstThreads);
+    test.emplace_back(timeData.endEstAdaptiveTime/ timeData.endEstAdaptiveThreads);
+
+    float fastest = std::numeric_limits<float>::max();
+    int fastest_index = 0;
+    for(int index =0; index < test.size();index++)
+    {
+      if(test[index] < fastest)
+      {
+        fastest = test[index];
+        fastest_index = index;
+      }
+    }
+    bestSortMode = fastest_index;
+  }
+
+}
+  //test.emplace_back(timeData.noSortTime / timeData.noSortThreads);
+  /*
+  test.emplace_back(timeData.hitObjectTime/ timeData.hitObjectThreads);
+  test.emplace_back(timeData.originTime/ timeData.originThreads);
+  test.emplace_back(timeData.reisTime/ timeData.reisThreads);
+  test.emplace_back(timeData.costaTime/ timeData.costaThreads);
+  test.emplace_back(timeData.ailaTime/ timeData.ailaThreads);
+  test.emplace_back(timeData.twoPointTime/ timeData.twoPointThreads);
+  test.emplace_back(timeData.endPointEstTime/ timeData.endPointEstThreads);
+  test.emplace_back(timeData.endEstAdaptiveTime/ timeData.endEstAdaptiveThreads);
+  */
+
 
 
 
 //receive profiling data from gpu
+
+if(rtx->m_enableProfiling)
+{
 size_t render_extent = render_size.width * render_size.height;
 
 
-if(render_extent != profilingStats[0].size())
+if(render_extent != profilingStats[sortMode].size())
 {
-  profilingStats[0].resize(render_extent);
+  profilingStats[sortMode].resize(render_extent);
   std::cout << "resizing profiling Buffer" << std::endl;
 }
+
 
 if(m_rtxState.frame <1)
 {
   std::vector<ProfilingStats> newStats;
-  profilingStats[0] = newStats;
-  profilingStats[0].resize(render_extent);
+  profilingStats[sortMode] = newStats;
+  profilingStats[sortMode].resize(render_extent);
+  std::cout << "reset profile buffer " << std::endl;
 }
 
+
   int row = m_rtxState.frame % render_size.height;
-  size_t size = render_size.width * sizeof(ProfilingStats);
+  size_t size = render_size.width * render_size.height * sizeof(ProfilingStats);
   size_t offset = row * size;
 
-  const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,offset,size);
+  const void* profileData = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,size);
   //const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,render_size.width* render_size.height* sizeof(ProfilingStats));
   
-  ProfilingStats* statsPointer = (ProfilingStats*) data;
+  ProfilingStats* statsPointer = (ProfilingStats*) profileData;
   //memcpy(profilingStats.data()+(render_size.width*row),data,size);
-  //
+  memcpy(profilingStats[sortMode].data(),statsPointer,size);
 
-  for(uint64_t i = 0; i < render_size.width; i++)
+  //
+/*
+  for(uint64_t i = 0; i < size; i++)
   {
     float divisor = 1.0f/(float)(m_rtxState.frame +1);
 
-    profilingStats[0][(render_size.width*row) + i] = statsPointer[i];
+    profilingStats[sortMode][i] = statsPointer[i];
   }
+  */
 
   
-
+}
 
   m_staging.releaseResources();
 
+//*/
 
   //
 

@@ -77,7 +77,7 @@ void SampleGUI::render(nvvk::ProfilerVK& profiler)
     if(ImGui::CollapsingHeader("Stats"))
     {
       Gui::Group<bool>("Scene Info", false, [&] { return guiStatistics(); });
-      Gui::Group<bool>("Profiler", false, [&] { return guiProfiler(profiler); });
+      Gui::Group<bool>("Profiler", true, [&] { return guiProfiler(profiler); });
       Gui::Group<bool>("Plot", false, [&] { return guiGpuMeasures(); });
     }
     ImGui::TextWrapped("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
@@ -159,16 +159,7 @@ bool SampleGUI::guiRayTracing()
       rtx->enableProfiling(bProfiling);
       changed = true;
     }
-    /*
-      eNoSorting   = 0, //
-      eHitObject   = 1, //
-      eOrigin      = 2, //
-      eReis        = 3, // Sort by Origin Direction
-      eCosta       = 4, // Sort by Direction Origin
-      eAila        = 5, // Sort by Origin Direction Interleaved
-      eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
-      eEndPointEst = 7  // Sort by Origin and estimated ray endpoint
-    */
+    ImGui::Text(std::to_string(_se->bestSortMode).c_str());
     if(GuiH::Selection("Sorting Mode", "Display unique values of material", rtx->getSortingMode(), nullptr, Normal,{
                                    "No Sorting",
                                    "HitObject",
@@ -178,33 +169,36 @@ bool SampleGUI::guiRayTracing()
                                    "Sort by Origin&Direction interleaved",
                                    "Twopoint sorting",
                                    "Endpoint Estimation",
-                                   "Adaptive Endpoint Estimation",}))
+                                   "Adaptive Endpoint Estimation",
+                                   "Infer Sorting Key",}))
     {
       vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
       _se->reloadRender();
       changed = true;
     }
-    if(GuiH::Slider("Number Coherence Bits", "", rtx->getNumCoherenceBits(), nullptr, Normal, 1, 300))
+    if(GuiH::Slider("Number Coherence Bits", "", rtx->getNumCoherenceBits(), nullptr, Normal, 1, 64))
     {
       vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
       _se->reloadRender();
       changed = true;
     }
   }
-
+  
   GuiH::Group<bool>("Profiling", false, [&] {
 
     ImGui::RadioButton("Shading Time",&m_pMode,eShade);
     ImGui::SameLine();
     ImGui::RadioButton("Sorting Time",&m_pMode,eSort);
-    ImGui::SameLine();
+    
     ImGui::RadioButton("Ray Traversal Time",&m_pMode,eRayTraversal);
+    ImGui::SameLine();
+    ImGui::RadioButton("Ray Tracing Time",&m_pMode,eTracing);
 
 
     GuiH::Checkbox("show Histogram","",&showHistogram);
     
     
-    
+  
     if(showHistogram)
     {
       ImGui::RadioButton("Standard",&histogramFlags,ImPlotHistogramFlags_None);
@@ -217,7 +211,8 @@ bool SampleGUI::guiRayTracing()
       {
       ImPlot::SetupAxes("Time","#Threads");
       std::vector<float> rttime;
-      for (ProfilingStats timing : _se->profilingStats[0])
+      std::vector<ProfilingStats> stats = _se->profilingStats[*(dynamic_cast<RtxPipeline*>(_se->m_pRender[_se->m_rndMethod])->getSortingMode())];
+      for (ProfilingStats timing : stats)
       {
         if(m_pMode == eShade)
         {
@@ -231,13 +226,18 @@ bool SampleGUI::guiRayTracing()
         {
           rttime.emplace_back((float)timing.rtTiming.avg_time);
         }
+        if(m_pMode == eTracing)
+        {
+          rttime.emplace_back((float)timing.traceTiming.avg_time);
+        }
       }
-      ImPlot::PlotHistogram("first histogram",rttime.data(),rttime.size(),ImPlotBin_Sqrt,(0.5),ImPlotRange(),histogramFlags);
+      ImPlot::PlotHistogram("first histogram",rttime.data(),rttime.size(),ImPlotBin_Sqrt,(1.0),ImPlotRange(),histogramFlags);
       ImPlot::EndPlot();
       }
     }
     return false;
-  });
+  }); 
+  
 
   GuiH::Group<bool>("Debugging", false, [&] {
     changed |= GuiH::Selection("Debug Mode", "Display unique values of material", &rtxState.debugging_mode, nullptr, Normal,
@@ -462,6 +462,11 @@ bool SampleGUI::guiStatistics()
   return false;
 }
 
+
+void SampleGUI::prepareTimeData(TimingData data)
+{
+
+}
 //--------------------------------------------------------------------------------------------------
 //
 //
@@ -471,6 +476,7 @@ bool SampleGUI::guiProfiler(nvvk::ProfilerVK& profiler)
   {
     vec2  statRender{0.0f, 0.0f};
     vec2  statTone{0.0f, 0.0f};
+    vec2  statRenderEnd{0.0f, 0.0f};
     float frameTime{0.0f};
   };
   static Info  display;
@@ -482,13 +488,25 @@ bool SampleGUI::guiProfiler(nvvk::ProfilerVK& profiler)
   {
     dirtyCnt++;
     nvh::Profiler::TimerInfo info;
+    nvh::Profiler::TimerInfo end_info;
     profiler.getTimerInfo("Render", info);
+    int current_index = _se->m_rtxState.frame % 5;
+    stored_frames[current_index] = _se->m_rtxState.frame;
+    stored_timers[current_index] = info;
     collect.statRender.x += float(info.gpu.average / 1000.0f);
     collect.statRender.y += float(info.cpu.average / 1000.0f);
+
+    profiler.getTimerInfo("Render Section", end_info);
+    /*
+    profiler.getTimerInfo("Render End", end_info);
+    collect.statRenderEnd.x += float(info.gpu.average / 1000.0f) - float(end_info.gpu.average / 1000.0f);
+    collect.statRenderEnd.y += float(info.cpu.average / 1000.0f) - float(end_info.cpu.average / 1000.0f);
+    */
     profiler.getTimerInfo("Tonemap", info);
     collect.statTone.x += float(info.gpu.average / 1000.0f);
     collect.statTone.y += float(info.cpu.average / 1000.0f);
     collect.frameTime += 1000.0f / ImGui::GetIO().Framerate;
+
 
     if(_se->m_offscreen.m_tonemapper.autoExposure == 1)
     {
@@ -504,15 +522,32 @@ bool SampleGUI::guiProfiler(nvvk::ProfilerVK& profiler)
   if(dirtyTimer >= 0.5f)
   {
     display.statRender = collect.statRender / dirtyCnt;
+    //display.statRenderEnd = collect.statRenderEnd / dirtyCnt;
     display.statTone   = collect.statTone / dirtyCnt;
     display.frameTime  = collect.frameTime / dirtyCnt;
     dirtyTimer         = 0;
     dirtyCnt           = 0;
     collect            = Info{};
   }
+  
 
   ImGui::Text("Frame     [ms]: %2.3f", display.frameTime);
   ImGui::Text("Render GPU/CPU [ms]: %2.3f  /  %2.3f", display.statRender.x, display.statRender.y);
+
+  ImGui::Text("gpu time   [ms]: %2.3f", (double) (_se->latest_timeData.full_time/glm::max(_se->latest_timeData.full_time_threads, 1u)));
+  ImGui::Text("noSort time   [ms]: %2.3f", (double) (_se->latest_timeData.noSortTime/glm::max(_se->latest_timeData.noSortThreads, 1u)));
+  ImGui::Text("hitobject time   [ms]: %2.3f", (double) (_se->latest_timeData.hitObjectTime/glm::max(_se->latest_timeData.hitObjectThreads, 1u)));
+  ImGui::Text("origin time   [ms]: %2.3f", (double) (_se->latest_timeData.originTime/glm::max(_se->latest_timeData.originThreads, 1u)));
+  ImGui::Text("reis time   [ms]: %2.3f", (double) (_se->latest_timeData.reisTime/glm::max(_se->latest_timeData.reisThreads, 1u)));
+  ImGui::Text("costa time   [ms]: %2.3f", (double) (_se->latest_timeData.costaTime/glm::max(_se->latest_timeData.costaThreads, 1u)));
+  ImGui::Text("aila time   [ms]: %2.3f", (double) (_se->latest_timeData.ailaTime/glm::max(_se->latest_timeData.ailaThreads, 1u)));
+  ImGui::Text("twopoint time   [ms]: %2.3f", (double) (_se->latest_timeData.twoPointTime/glm::max(_se->latest_timeData.twoPointThreads, 1u)));
+  ImGui::Text("endpoint time   [ms]: %2.3f", (double) (_se->latest_timeData.endPointEstTime/glm::max(_se->latest_timeData.endPointEstThreads, 1u)));
+  ImGui::Text("adaptive time   [ms]: %2.3f", (double) (_se->latest_timeData.endEstAdaptiveTime/glm::max(_se->latest_timeData.endEstAdaptiveThreads, 1u)));
+
+  ImGui::Text("Frame     : %1d", glm::max(stored_frames[(_se->m_rtxState.frame-4) % 5],0));
+  ImGui::Text("Frame gpu : %1d", _se->latest_timeData.frame);
+ // ImGui::Text("Render_End GPU/CPU [ms]: %2.3f  /  %2.3f", display.statRenderEnd.x, display.statRenderEnd.y);
   ImGui::Text("Tone+UI GPU/CPU [ms]: %2.3f  /  %2.3f", display.statTone.x, display.statTone.y);
   if(_se->m_offscreen.m_tonemapper.autoExposure == 1)
     ImGui::Text("Mipmap Gen: %2.3fms", mipmapGen);
