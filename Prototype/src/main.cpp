@@ -257,7 +257,7 @@ int main(int argc, char** argv)
       // Render the UI
       ImGui::Render();
       ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
-
+      
       vkCmdEndRenderPass(cmdBuf);
     }
 
@@ -266,6 +266,7 @@ int main(int argc, char** argv)
     // Submit for display
     vkEndCommandBuffer(cmdBuf);
     sample.submitFrame();
+
     
 
 

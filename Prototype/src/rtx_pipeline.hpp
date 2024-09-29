@@ -20,11 +20,14 @@
 
 #pragma once
 
+#include <future>
+
 #include "nvvk/resourceallocator_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/sbtwrapper_vk.hpp"
 #include "nvvk/profiler_vk.hpp"
+#include "nvvk/specialization.hpp"
 
 #include "renderer.h"
 #include "shaders/host_device.h"
@@ -52,25 +55,47 @@ public:
   void setup(const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t familyIndex, nvvk::ResourceAllocator* allocator) override;
   void destroy() override;
   void create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene) override;
+  void create_async(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene);
   void run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvvk::ProfilerVK& profiler, const std::vector<VkDescriptorSet>& descSets) override;
   void useAnyHit(bool enable);
   void setSortingMode(int sortingModeIndex);
   int* getSortingMode() {return &m_sortingMode;};
   int* getNumCoherenceBits() {return &m_numCoherenceBits;};
   void enableProfiling(bool enable);
+  int hashParameters(SortingParameters parameters);
+  SortingParameters rebuildFromhash(int hashCode);
 
   const std::string name() override { return std::string("Rtx"); }
   bool     m_enableProfiling{false};
 
+  SortingParameters m_SERParameters{
+    32,     //numCoherenceBitsTotal: 0-32 Zero meaning No sorting
+    true,   //sortAfterASTraversal; when to sort->  0: before TraceRay; 1: after TraceRay
+            //Which Information to encode into sortingKey:
+    false,  //No Sorting
+    true,   //hitObject
+    false,  //ray origin
+    false,  //ray direction
+    false,  //estimated endpoint/ray length
+    false,  //real endpoint/ray length; only known after AS Traversal
+    false,  //whether or not the path is finished after this bounce
+  };
+std::vector<VkPipeline> m_cachedRtPipelines;
+
+void setPipeline(int index);
 private:
   void createPipeline();
-  void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts);
+  void createPipeline_async();
+  void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts,VkPipelineLayout& pipelineLayout);
+  void createPipelineLayout_async(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts);
 
 
   uint32_t m_nbHit{1};
   bool     m_enableAnyhit{true};
-  int      m_sortingMode{9};
+  int      m_sortingMode{0};
   int      m_numCoherenceBits{32};
+  VkPipelineCache m_PipelineCache;
+  void createPipelineCache();
 
 
 private:
@@ -86,10 +111,48 @@ private:
   VkPipeline                                      m_rtPipeline{VK_NULL_HANDLE};
   SBTWrapper                                      m_sbtWrapper;
 
+  VkPipelineLayout                                m_rtPipelineLayout_async{VK_NULL_HANDLE};
+  VkPipeline                                      m_rtPipeline_async{VK_NULL_HANDLE};
+  SBTWrapper                                      m_sbtWrapper_async;
+
+
+  int activePipeline;
+
+  struct ShaderObject
+  {
+    int hashcode; // represents parameterization of this shader Object
+    shaderc::SpvCompilationResult *compResult;
+  };
+  std::vector<ShaderObject> raygenShaders;
+
+  shaderc::SpvCompilationResult* result2;
+  shaderc::SpvCompilationResult result3;
+
+  shaderc::SpvCompilationResult hitshader;
+  shaderc::SpvCompilationResult missshader;
+  std::vector<shaderc::SpvCompilationResult> results;
+  std::vector<nvvk::Specialization> storedSpecializations;
+  std::vector<int> hashedParameterizations;
+  bool madeOne = false;
+  bool creatingPipeline = false;
+
+  
 private:
   //nvvkhl::GlslIncluder glslIncluder;
   nvvkhl::GlslCompiler glslCompiler;
   std::unique_ptr<shaderc::CompileOptions> glslCompileOptions;
   void setupGLSLCompiler();
   VkShaderModule CompileAndCreateShaderModule(std::string filename, shaderc_shader_kind shadertype);
+  shaderc::SpvCompilationResult CompileShader(std::string filename, shaderc_shader_kind shadertype);
+  shaderc::SpvCompilationResult *getRayGenShaderObject();
+
+  std::vector<uint32_t> rgen;
+
+
+  bool m_busy = false;
+  bool requiresNewPipeline = true;
+  bool useAsyncPipelineCreation = false;
+
+  std::future<void> asyncPipeline;
+
 };

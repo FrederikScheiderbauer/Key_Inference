@@ -152,6 +152,11 @@ void ClosestHitRandom(Ray r, uint random_s_mode)
   //ClosestHit(r);
 }
 
+void ClosestHitParameterized(Ray r,int  depth)
+{
+  
+}
+
 
 //-----------------------------------------------------------------------
 // Shadow ray - return true if a ray hits anything

@@ -23,7 +23,8 @@
  */
 
 
-#include <future>
+
+#include <thread>
 
 #include "nvh/alignment.hpp"
 #include "nvh/fileoperations.hpp"
@@ -31,13 +32,22 @@
 #include "rtx_pipeline.hpp"
 #include "scene.hpp"
 #include "tools.hpp"
-#include "nvvk/specialization.hpp"
+
 // Shaders
 #include "autogen/pathtrace.rahit.h"
 #include "autogen/pathtrace.rchit.h"
 #include "autogen/pathtrace.rgen.h"
 #include "autogen/pathtrace.rmiss.h"
 #include "autogen/pathtraceShadow.rmiss.h"
+
+ 	
+
+// basic file operations
+#include <iostream>
+#include <fstream>
+
+//Macros
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 
 //--------------------------------------------------------------------------------------------------
 // Typical resource holder + query for capabilities
@@ -56,12 +66,16 @@ void RtxPipeline::setup(const VkDevice& device, const VkPhysicalDevice& physical
   properties.pNext = &m_rtProperties;
   vkGetPhysicalDeviceProperties2(physicalDevice, &properties);
 
+  createPipelineCache();
+
   m_sbtWrapper.setup(device, familyIndex, allocator, m_rtProperties);
+  m_sbtWrapper_async.setup(device, familyIndex, allocator, m_rtProperties);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Destroy all allocated resources
 //
+
 void RtxPipeline::destroy()
 {
   m_sbtWrapper.destroy();
@@ -69,8 +83,18 @@ void RtxPipeline::destroy()
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
 
+  m_sbtWrapper_async.destroy();
+  vkDestroyPipeline(m_device, m_rtPipeline_async, nullptr);
+  vkDestroyPipelineLayout(m_device, m_rtPipelineLayout_async, nullptr);
+  vkDestroyPipelineCache(m_device,m_PipelineCache,nullptr);
+  m_PipelineCache = VK_NULL_HANDLE;
+
   m_rtPipelineLayout = VkPipelineLayout();
   m_rtPipeline       = VkPipeline();
+  requiresNewPipeline = true;
+  m_rtPipelineLayout_async = VkPipelineLayout();
+  m_rtPipeline_async       = VkPipeline();
+  //results = std::vector<shaderc::SpvCompilationResult>();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -78,24 +102,77 @@ void RtxPipeline::destroy()
 //
 void RtxPipeline::create(const VkExtent2D& size, const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, Scene* scene)
 {
-  MilliTimer timer;
-  LOGI("Create RtxPipeline");
+  if(m_PipelineCache == VK_NULL_HANDLE)
+  {createPipelineCache();}
+
+  if(useAsyncPipelineCreation)
+  {
+    m_busy = true;
+      std::thread([&]() {
+      
+      m_busy = false;
+    }).detach();
+  }else
+  {
+    MilliTimer timer;
+    LOGI("Create RtxPipeline");
 
 
-  m_nbHit = 1;  //scene->getStat().nbMaterials;
-  createPipelineLayout(rtDescSetLayouts);
-  createPipeline();
-  timer.print();
+    m_nbHit = 1;  //scene->getStat().nbMaterials;
+    
+    createPipelineLayout(rtDescSetLayouts,m_rtPipelineLayout);
+    createPipeline();
+    
+    timer.print();
+    //std::cout <<"rtDescsetlayouts:" <<static_cast<uint32_t>(rtDescSetLayouts.size()) << std::endl;
+
+    /*
+    if(asyncPipeline.valid())
+    {
+      asyncPipeline.get();
+      printf("finished async pipeline\n");
+      m_busy = false;
+    }
+    if(!m_busy)
+    {
+      m_busy = true;
+
+      std::future<void> join;
+
+        VkDevice device{m_device};
+        join = std::async(std::launch::async, [this, device,rtDescSetLayouts]() {
+          createPipelineLayout(rtDescSetLayouts,m_rtPipelineLayout_async);
+          // A return of VK_THREAD_IDLE_KHR should queue another job
+        });
+
+    }
+    */
+      
+    
+    if(!m_busy)
+    {
+      m_busy = true;
+      std::thread([&,rtDescSetLayouts]() {
+        createPipelineLayout(rtDescSetLayouts,m_rtPipelineLayout_async);
+        m_busy = false;
+      }).detach();
+    }
+    
+
+  }
+
 }
+
+
 
 
 //--------------------------------------------------------------------------------------------------
 // The layout has a push constant and the incoming descriptors are:
 // acceleration structure, offscreen image, scene data, hdr
 //
-void RtxPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts)
+void RtxPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts, VkPipelineLayout& pipelineLayout)
 {
-  vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
+  vkDestroyPipelineLayout(m_device, pipelineLayout, nullptr);
 
   VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                                    0, sizeof(RtxState)};
@@ -105,7 +182,7 @@ void RtxPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout>&
   pipelineLayoutCreateInfo.pPushConstantRanges    = &pushConstant;
   pipelineLayoutCreateInfo.setLayoutCount         = static_cast<uint32_t>(rtDescSetLayouts.size());
   pipelineLayoutCreateInfo.pSetLayouts            = rtDescSetLayouts.data();
-  vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
+  vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
 }
 
 
@@ -115,6 +192,7 @@ void RtxPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout>&
 void RtxPipeline::createPipeline()
 {
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+  m_sbtWrapper.destroy();
 
   enum StageIndices
   {
@@ -132,15 +210,67 @@ void RtxPipeline::createPipeline()
   stage.pName = "main";  // All the same entry point
 
   // Raygen
-  stage.module    = CompileAndCreateShaderModule("pathtrace.rgen",shaderc_raygen_shader);
+  //shaderc::SpvCompilationResult compresult = CompileShader("pathtrace.rgen",shaderc_raygen_shader);
+  //result3 = CompileShader("pathtrace.rgen",shaderc_raygen_shader);
+
+  int hashCode = hashParameters(m_SERParameters);
+
+  bool foundOne = false;
+
+  VkShaderModule module;
+  if(!madeOne)
+  {
+    result3 = CompileShader("pathtrace.rgen",shaderc_raygen_shader);
+    hitshader = CompileShader("pathtrace.rchit",shaderc_closesthit_shader);
+    madeOne = true;
+    printf("made a new one\n");
+  }
+  module = glslCompiler.createModule(m_device,result3);
+  
+
+  
+  
+  //shaderc::SpvCompilationResult compresult2 = CompileShader("pathtrace.rgen",shaderc_raygen_shader);
+  std::ifstream myfile;
+  //module = glslCompiler.createModule(m_device,results[0]);
+  //module = nvvk::createShaderModule(m_device, rgen.data(), sizeof(rgen));
+  stage.module    = module;
   stage.stage     = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
   stages[eRaygen] = stage;
 
+
+  //add specializations
   nvvk::Specialization specialization;
-  specialization.add(0,m_sortingMode);
-  specialization.add(1,m_numCoherenceBits);
-  specialization.add(2,m_enableProfiling);
+  for(int i= 0; i < hashedParameterizations.size(); i++)
+  {
+    if(hashedParameterizations[i]==hashCode)
+    {
+      specialization = storedSpecializations[i];
+      stage.module    = module;
+      foundOne = true;
+      break;
+    }
+  }
+  if(!foundOne)
+  {
+    specialization.add(0,m_sortingMode);
+    specialization.add(1,m_enableProfiling);
+    //Add Sorting parameters as specialization constants
+    specialization.add(2,m_SERParameters.noSort); //No Sorting
+    specialization.add(3,m_SERParameters.hitObject); //HitObject
+    specialization.add(4,m_SERParameters.rayOrigin); //RayOrigin
+    specialization.add(5,m_SERParameters.rayDirection); //RayDirection
+    specialization.add(6,m_SERParameters.estimatedEndpoint); //EstEndPoint
+    specialization.add(7,m_SERParameters.realEndpoint); //RealEndpoint
+    specialization.add(8,m_SERParameters.sortAfterASTraversal); //AfterASTraversal
+    specialization.add(9,m_SERParameters.isFinished); //isFinished
+
+    storedSpecializations.emplace_back(specialization);
+    hashedParameterizations.emplace_back(hashCode);
+  }
+  
   stages[eRaygen].pSpecializationInfo = specialization.getSpecialization();
+  
 
 
   // Miss
@@ -154,7 +284,7 @@ void RtxPipeline::createPipeline()
   stages[eMiss2] = stage;
 
   // Hit Group - Closest Hit
-  stage.module        = CompileAndCreateShaderModule("pathtrace.rchit",shaderc_closesthit_shader);
+  stage.module        =glslCompiler.createModule(m_device,hitshader);// CompileAndCreateShaderModule("pathtrace.rchit",shaderc_closesthit_shader);
   stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
   stages[eClosestHit] = stage;
 
@@ -216,8 +346,7 @@ void RtxPipeline::createPipeline()
     result = vkCreateDeferredOperationKHR(m_device, nullptr, &deferredOp);
     assert(result == VK_SUCCESS);
   }
-
-  vkCreateRayTracingPipelinesKHR(m_device, deferredOp, {}, 1, &rayPipelineInfo, nullptr, &m_rtPipeline);
+  vkCreateRayTracingPipelinesKHR(m_device, deferredOp,m_PipelineCache, 1, &rayPipelineInfo, nullptr, &m_rtPipeline);
 
   if(useDeferred)
   {
@@ -246,7 +375,6 @@ void RtxPipeline::createPipeline()
     vkDestroyDeferredOperationKHR(m_device, deferredOp, nullptr);
   }
 
-
   // --- SBT ---
   m_sbtWrapper.create(m_rtPipeline, rayPipelineInfo);
 
@@ -254,6 +382,7 @@ void RtxPipeline::createPipeline()
   for(auto& s : stages)
     vkDestroyShaderModule(m_device, s.module, nullptr);
 }
+
 
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
@@ -301,8 +430,30 @@ void RtxPipeline::setupGLSLCompiler()
 }
 
 
+shaderc::SpvCompilationResult RtxPipeline::CompileShader(std::string filename, shaderc_shader_kind shadertype)
+{
+  shaderc::SpvCompilationResult compResult = glslCompiler.compileFile(filename,shadertype);
+  auto compilationSize = (compResult.end() - compResult.begin()) * sizeof(uint32_t);
+  const uint32_t* pCode =  reinterpret_cast<const uint32_t*>(compResult.begin());
+  
+  rgen.clear();
+  for(int i = 0; i < (compResult.end() - compResult.begin());i++)
+  {
+    rgen.emplace_back(pCode[i]);
+  }
+
+
+  //rgen.assign(pCode,pCode+compilationSize);
+  std::ofstream myfile;
+  myfile.open("example.txt");
+  myfile.write(reinterpret_cast<const char*>(pCode),compilationSize);
+  myfile.close();
+  return compResult;
+}
+
 VkShaderModule RtxPipeline::CompileAndCreateShaderModule(std::string filename, shaderc_shader_kind shadertype)
 {
+
   shaderc::SpvCompilationResult compResult = glslCompiler.compileFile(filename,shadertype);
 
   VkShaderModule resultModule = glslCompiler.createModule(m_device,compResult);
@@ -321,4 +472,89 @@ void RtxPipeline::enableProfiling(bool enable)
 {
   m_enableProfiling = enable;
   createPipeline();
+}
+
+
+void RtxPipeline::setPipeline(int index)
+{
+  m_rtPipeline = m_cachedRtPipelines[index];
+}
+
+int RtxPipeline::hashParameters(SortingParameters parameters)
+{
+  int result = 0;
+  if(parameters.noSort)
+  {
+    result |= 1;
+    return result;
+  }
+
+  result |= parameters.sortAfterASTraversal ? 2: 0;
+  result |= parameters.hitObject ? 4: 0;
+  result |= parameters.rayOrigin ? 8: 0;
+  result |= parameters.rayDirection ? 16: 0;
+  result |= parameters.estimatedEndpoint ? 32: 0;
+  result |= parameters.realEndpoint ? 64: 0;
+  result |= parameters.isFinished ? 128: 0;
+
+  return result;
+}
+
+SortingParameters RtxPipeline::rebuildFromhash(int hashCode)
+{
+  SortingParameters result;
+  result.numCoherenceBitsTotal = 32;
+  result.noSort = CHECK_BIT(hashCode,0);
+  result.sortAfterASTraversal = CHECK_BIT(hashCode,1);
+  result.hitObject = CHECK_BIT(hashCode,2);
+  result.rayOrigin = CHECK_BIT(hashCode,3);
+  result.rayDirection = CHECK_BIT(hashCode,4);
+  result.estimatedEndpoint = CHECK_BIT(hashCode,5);
+  result.realEndpoint = CHECK_BIT(hashCode,6);
+  result.isFinished = CHECK_BIT(hashCode,7);
+
+  return result;
+}
+
+shaderc::SpvCompilationResult* RtxPipeline::getRayGenShaderObject()
+{
+shaderc::SpvCompilationResult* result;
+
+int hashCode = hashParameters(m_SERParameters);
+
+if(raygenShaders.size() > 0)
+{
+
+  for (int i =0; i < raygenShaders.size();i++)
+  {
+    if(hashCode == raygenShaders[i].hashcode)
+    {
+      result = raygenShaders[i].compResult;
+      return result;
+    }
+  }
+}
+RtxPipeline::ShaderObject newObject;
+newObject.hashcode = hashCode;
+shaderc::SpvCompilationResult compResult = CompileShader("pathtrace.rgen",shaderc_raygen_shader);
+newObject.compResult = &compResult;
+raygenShaders.emplace_back(newObject);
+return newObject.compResult;
+}
+
+
+void RtxPipeline::createPipelineCache()
+{
+
+  VkPipelineCacheCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+  createInfo.pNext = nullptr;
+  createInfo.initialDataSize = 0;
+  createInfo.flags = 0;
+
+  VkResult result = vkCreatePipelineCache(m_device,&createInfo,nullptr,&m_PipelineCache);
+  if(result == VK_SUCCESS)
+  {
+    printf("Success\n");
+  }
+
 }

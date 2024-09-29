@@ -42,6 +42,7 @@ private:
   bool guiRayTracing();
   bool guiTonemapper();
   bool guiEnvironment();
+  bool guiSortingGrid();
   bool guiStatistics();
   bool guiProfiler(nvvk::ProfilerVK& profiler);
   bool guiGpuMeasures();
@@ -61,7 +62,15 @@ private:
   int m_pMode{eShade};
   int histogramFlags =0;
   bool inferSortingKey = false;
+  //uint NumCoherenceBits = _se->m_SERParameters.numCoherenceBitsTotal;
   
   std::vector<float> rttime;
   bool showHistogram{false};
+
+  int manualSorting{1};
+
+  
+  float constantGridlearningSpeed = 0.2f;
+
+
 };

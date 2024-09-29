@@ -132,12 +132,20 @@ uint SortingKeyCosta(vec3 origin, vec3 direction)
         for (int i = 12; i >= 9; --i) {
             mortonCode |= ((floatBitsToInt(ib.x) >> i) & 1) << (2 * i +39); // max 9
             mortonCode |= ((floatBitsToInt(ib.y) >> i) & 1) << (2 * i +38); // max 8
+            //mortonCode |= ((floatBitsToInt(ib.x) >> i) & 1) << (2 * i -15); // max 9
+            //mortonCode |= ((floatBitsToInt(ib.y) >> i) & 1) << (2 * i -14); // max 8
         }
 
         for (int i = 7; i >= 1; --i) {
+            
             mortonCode |= ((floatBitsToInt(ia.x) >> i) & 1) << (3 * i + 19); // max 31
             mortonCode |= ((floatBitsToInt(ia.y) >> i) & 1) << (3 * i + 18); // max 30
             mortonCode |= ((floatBitsToInt(ia.z) >> i) & 1) << (3 * i + 17); // max 29
+
+
+            //mortonCode |= ((floatBitsToInt(ia.x) >> i) & 1) << (3 * i + 10); // max 31
+            //mortonCode |= ((floatBitsToInt(ia.y) >> i) & 1) << (3 * i + 9); // max 30
+            //mortonCode |= ((floatBitsToInt(ia.z) >> i) & 1) << (3 * i + 8); // max 29
         }
 
         // Output key.
@@ -412,6 +420,82 @@ uint createSortingKey(uint sortingMode,PtPayload prd, Ray ray)
     }
     return code;
 }
+
+
+uint createSortingKeyFromParameters(Ray ray, SortingParameters parameters)
+{
+    uint resultCode = 0;
+    uint originCode = 0;
+    uint directionCode = 0;
+    uint estEndCode = 0;
+    uint realEndCode = 0;
+
+    if(parameters.rayOrigin)
+    {
+        resultCode = SortingKeyOrigin(ray.origin.xyz);
+    }
+    if(parameters.rayDirection)
+    {
+        resultCode = (SortingKeyCosta(ray.origin.xyz,ray.direction.xyz) >> 24);
+    }
+    if(parameters.estimatedEndpoint)
+    {
+        resultCode = SortingKeyEndPointEstimationAdaptive(ray.origin.xyz, ray.direction.xyz, prd.hitT);
+    }
+    if(parameters.realEndpoint)
+    {
+        resultCode = SortingKeyTwoPoint(ray.origin.xyz,ray.direction.xyz, prd.hitT);
+    }
+
+
+    if(parameters.isFinished)
+    {
+        resultCode = resultCode & (prd.depth < (rtxState.maxDepth-1) ? 1 : 0);
+    }
+
+    return resultCode;
+
+
+}
+
+uint createSortingKeyFromSpecialization(Ray ray)
+{
+    uint resultCode = 0;
+    uint originCode = 0;
+    uint directionCode = 0;
+    uint estEndCode = 0;
+    uint realEndCode = 0;
+
+    if(RAYORIGIN)
+    {
+        resultCode = SortingKeyOrigin(ray.origin.xyz);
+    }
+    if(RAYDIRECTION)
+    {
+        resultCode = (SortingKeyCosta(ray.origin.xyz,ray.direction.xyz) >> 24);
+    }
+    if(ESTENDPOINT)
+    {
+        resultCode = SortingKeyEndPointEstimationAdaptive(ray.origin.xyz, ray.direction.xyz, prd.hitT);
+    }
+    if(REALENDPOINT)
+    {
+        resultCode = SortingKeyTwoPoint(ray.origin.xyz,ray.direction.xyz, prd.hitT);
+    }
+
+
+    if(ISFINISHED)
+    {
+        resultCode = resultCode & (prd.depth < (rtxState.maxDepth-1) ? 1 : 0);
+    }
+
+    return resultCode;
+
+
+}
+
+
+
 
 
 #endif

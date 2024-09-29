@@ -11,15 +11,15 @@
 */
 void setupProfiler()
 {
-    prd.shadeTiming = 0;
+    //prd.shadeTiming = 0;
 
-    prd.rtTiming = 0;
+    //prd.rtTiming = 0;
 
-    prd.sortTiming = 0;
+    //prd.sortTiming = 0;
 
-    prd.traceTiming = 0;
+    //prd.traceTiming = 0;
 }
-
+/*
 void accumulateSamplesMax(uint sortMode,uint64_t duration)
 {
   if(sortMode == eNoSorting)
@@ -170,5 +170,5 @@ void resetTimings(int ID)
       }
 
 }
-
+*/
 #endif

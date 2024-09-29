@@ -27,6 +27,7 @@
 
 #include "keyCreation.glsl"
 #include "random.glsl"
+
 //-----------------------------------------------------------------------
 // Shoot a ray an return the information of the closest hit, in the
 // PtPayload structure (PRD)
@@ -38,9 +39,117 @@ void ClosestHit(Ray r,int  depth)
   uint64_t start; 
   uint64_t end; 
   int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
-
-  if(SORTING_MODE == eNoSorting)
+  
+  if(NOSORTING)
   {
+        traceRayEXT(topLevelAS,   // acceleration structure
+                rayFlags,     // rayFlags
+                0xFF,         // cullMask
+                0,            // sbtRecordOffset
+                0,            // sbtRecordStride
+                0,            // missIndex
+                r.origin,     // ray origin
+                0.0,          // ray min range
+                r.direction,  // ray direction
+                INFINITY,     // ray max range
+                0             // payload (location = 0)
+    );
+  }
+  else 
+  {
+
+    uint code = createSortingKeyFromSpecialization(r);
+
+
+    if(!AFTERASTRAVERSAL)
+    {
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+    }
+
+
+    hitObjectNV hObj;
+    hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
+    hitObjectTraceRayNV(hObj,
+                topLevelAS,
+                rayFlags,
+                0xFF,
+                0,
+                0,
+                0,
+                r.origin,
+                0.0,
+                r.direction,
+                INFINITY,
+                0);
+
+    if(AFTERASTRAVERSAL)
+    {
+      if(HITOBJECT)
+      {
+        reorderThreadNV(hObj, code,_sortingParameters.numCoherenceBitsTotal );
+        //reorderThreadNV(hObj,code,_sortingParameters.numCoherenceBitsTotal);
+      }
+      else
+      {
+        reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+        //reorderThreadNV(hObj);
+      }
+    }
+
+    hitObjectExecuteShaderNV(hObj, 0);
+  }
+}
+
+//-----------------------------------------------------------------------
+// Shoot a ray an return the information of the closest hit, in the
+// PtPayload structure (PRD)
+//
+void ClosestHitOrigin(Ray r,int  depth)
+{
+  uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
+  prd.hitT      = INFINITY;
+  uint64_t start; 
+  uint64_t end; 
+  int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
+
+
+
+    uint code = createSortingKeyFromSpecialization(r);
+
+
+    if(!AFTERASTRAVERSAL)
+    {
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+    }
+
+
+    hitObjectNV hObj;
+    hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
+    hitObjectTraceRayNV(hObj,
+                topLevelAS,
+                rayFlags,
+                0xFF,
+                0,
+                0,
+                0,
+                r.origin,
+                0.0,
+                r.direction,
+                INFINITY,
+                0);
+
+    if(AFTERASTRAVERSAL)
+    {
+
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+      //reorderThreadNV(hObj);
+
+    }
+
+    hitObjectExecuteShaderNV(hObj, 0);
+}
+
+/*
     start = clockRealtimeEXT(); 
     traceRayEXT(topLevelAS,   // acceleration structure
                 rayFlags,     // rayFlags
@@ -68,7 +177,7 @@ void ClosestHit(Ray r,int  depth)
       sortingStart = clockRealtimeEXT();
       uint code = createSortingKey(SORTING_MODE,prd,r);
 
-      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
       sortingEnd = clockRealtimeEXT();
     }
     start = clockRealtimeEXT(); 
@@ -90,17 +199,18 @@ void ClosestHit(Ray r,int  depth)
     uint64_t duration = end -start;
     prd.rtTiming += duration;
 
-    if(SORTING_MODE == eHitObject)
+    if(HITOBJECT)
     {
       sortingStart = clockRealtimeEXT();
-      reorderThreadNV(hObj);
+      uint code = createSortingKey(eOrigin,prd,r);
+      reorderThreadNV(hObj, code,_sortingParameters.numCoherenceBitsTotal );
       sortingEnd = clockRealtimeEXT();
     }
     if(SORTING_MODE == eTwoPoint)
     {
       sortingStart = clockRealtimeEXT();
       uint code = createSortingKey(SORTING_MODE,prd,r);
-      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
       sortingEnd = clockRealtimeEXT();
 
     }
@@ -109,25 +219,31 @@ void ClosestHit(Ray r,int  depth)
     prd.sortTiming += sortingDuration;
 
   } 
-}
+  */
 
-//-----------------------------------------------------------------------
-// Shoot a ray an return the information of the closest hit, in the
-// PtPayload structure (PRD)
-// use random sortingMode
-//
-void ClosestHitRandom(Ray r, uint s_Mode)
+
+/*
+  uint numCoherenceBitsTotal; //1-32 Zero meaning No sorting
+  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
+  //Which Information to use
+  bool noSort;
+  bool hitObject;
+  bool rayOrigin;
+  bool rayDirection;
+  bool estimatedEndpoint;
+  bool realEndpoint;
+  bool isFinished;
+
+*/
+void ClosestHitParameterized(Ray r,int  depth)
 {
-
   uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
   prd.hitT      = INFINITY;
   uint64_t start; 
   uint64_t end; 
   int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
 
-
-
-  if(s_Mode == eNoSorting)
+  if(_sortingParameters.noSort)
   {
     start = clockRealtimeEXT(); 
     traceRayEXT(topLevelAS,   // acceleration structure
@@ -137,6 +253,7 @@ void ClosestHitRandom(Ray r, uint s_Mode)
                 0,            // sbtRecordStride
                 0,            // missIndex
                 r.origin,     // ray origin
+
                 0.0,          // ray min range
                 r.direction,  // ray direction
                 INFINITY,     // ray max range
@@ -144,19 +261,22 @@ void ClosestHitRandom(Ray r, uint s_Mode)
     );
     end = clockRealtimeEXT();
     uint64_t duration = end -start;
-    prd.rtTiming += duration;
+    prd.sortMode = 0;
+    //prd.rtTiming += duration;
   }
   else{
 
     uint64_t sortingStart; 
     uint64_t sortingEnd; 
 
-    if(s_Mode != eHitObject && s_Mode != eTwoPoint)
+    uint code = createSortingKeyFromParameters(r, _sortingParameters);
+
+    if(!(_sortingParameters.sortAfterASTraversal))
     {
       sortingStart = clockRealtimeEXT();
-      uint code = createSortingKey(s_Mode,prd,r);
-      reorderThreadNV(code,NUM_COHERENCE_BITS);
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
       sortingEnd = clockRealtimeEXT();
+      prd.sortMode = 1;
     }
     start = clockRealtimeEXT(); 
     hitObjectNV hObj;
@@ -175,28 +295,33 @@ void ClosestHitRandom(Ray r, uint s_Mode)
                 0);
     end = clockRealtimeEXT();
     uint64_t duration = end -start;
-    prd.rtTiming += duration;
-
-    if(s_Mode == eHitObject)
+    //prd.rtTiming += duration;
+    if(_sortingParameters.sortAfterASTraversal)
     {
-      sortingStart = clockRealtimeEXT();
-      reorderThreadNV(hObj);
-      sortingEnd = clockRealtimeEXT();
+      if(_sortingParameters.hitObject)
+      {
+        sortingStart = clockRealtimeEXT();
+        //reorderThreadNV(hObj, code,_sortingParameters.numCoherenceBitsTotal );
+        reorderThreadNV(hObj);
+        sortingEnd = clockRealtimeEXT();
+        prd.sortMode = 10;
+      }else
+      {
+        sortingStart = clockRealtimeEXT();
+        reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+        //reorderThreadNV(hObj);
+        sortingEnd = clockRealtimeEXT();
+        prd.sortMode = 3;
+      }
     }
-    if(s_Mode == eTwoPoint)
-    {
-      sortingStart = clockRealtimeEXT();
-      uint code = createSortingKey(s_Mode,prd,r);
-      reorderThreadNV(code,NUM_COHERENCE_BITS);
-      sortingEnd = clockRealtimeEXT();
 
-    }
     hitObjectExecuteShaderNV(hObj, 0);
     uint64_t sortingDuration = sortingEnd -sortingStart;
-    prd.sortTiming += sortingDuration;
+    //prd.sortTiming += sortingDuration;
 
   } 
 }
+
 
 //-----------------------------------------------------------------------
 // Shadow ray - return true if a ray hits anything

@@ -19,6 +19,7 @@
 
 
 #pragma once
+#include <random>
 #include "hdr_sampling.hpp"
 #include "nvvk/gizmos_vk.hpp"
 #include "renderer.h"
@@ -117,6 +118,7 @@ public:
   void onResize(int /*w*/, int /*h*/) override;
   void renderGui(nvvk::ProfilerVK& profiler);
   void createRender(RndMethod method);
+  void rebuildRender();//own contribution
   void reloadRender();//own contribution
   void resetFrame();
   void screenPicking();
@@ -124,6 +126,8 @@ public:
   void updateHdrDescriptors();
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void prepareProfilingData(VkCommandBuffer cmdBuf);
+
+  void doCycle();
 
   Scene              m_scene;
   AccelStructure     m_accelStruct;
@@ -142,6 +146,7 @@ public:
 
   nvvk::Buffer m_sunAndSkyBuffer;
   nvvk::Buffer m_profilingBuffer;
+  nvvk::Buffer m_sortingParametersBuffer; //UniformBuffers that contains the parameters chosen by User or the Classificator for SER
 
   int bestSortMode = eNoSorting;
   int DELAY_FRAMES = 4;
@@ -174,6 +179,10 @@ public:
 
   // #VKRay
   void renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK& profiler);
+
+  //creates a SortingParameters Struct
+
+  SortingParameters createSortingParameters();
 
 
   RtxState m_rtxState{
@@ -209,6 +218,19 @@ public:
       0,                    // in_use;
   };
 
+/*
+  uint numCoherenceBitsTotal; //0-32 Zero meaning No sorting
+  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
+  //Which Information to use
+  bool hitObject;
+  bool rayOrigin;
+  bool rayDirection;
+  bool estimatedEndpoint;
+  bool realEndpoint;
+  bool isFinished;
+  */
+
+
   int         m_maxFrames{100000};
   bool        m_showAxis{true};
   bool        m_descaling{false};
@@ -217,5 +239,50 @@ public:
   std::string m_busyReasonText;
 
 
+  std::random_device dev;
+  std::mt19937 rng;
+
   std::shared_ptr<SampleGUI> m_gui;
+
+
+  const float timePerCycle = 1000.0;
+
+  float timeRemaining = timePerCycle;
+  uint framesThisCycle = 0;
+
+  bool activateParametertesting = false;
+
+  struct TimingObject
+  {
+    int hashCode;
+    int frames;
+    float fps;
+  };
+
+  std::vector<TimingObject> inferenceMeasurements;
+
+float epsilon = 0.1f;
+float constantGridlearningSpeed = 0.2f;
+bool useConstantGridLearning = true;
+
+struct GridSpace
+{
+  std::vector<TimingObject> observedData;
+  float adaptiveGridLearningRate = 1.0f;
+};
+
+
+void buildSortingGrid();
+int grid_x = 2;
+int grid_y = 2;
+int grid_z = 2;
+
+glm::ivec3 currentGridSpace;
+
+std::vector<std::vector<std::vector<GridSpace>>> sortingGrid;
+
+
+bool waitingOnPipeline = false;
+
+
 };

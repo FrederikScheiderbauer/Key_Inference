@@ -190,7 +190,7 @@ void shadingEnd(uint64_t start)
 {
   uint64_t shadingEnd = clockRealtimeEXT();
   uint64_t shadingDuration = shadingEnd - start;
-  prd.shadeTiming += shadingDuration;
+  //prd.shadeTiming += shadingDuration;
 }
 
 //-----------------------------------------------------------------------
@@ -203,9 +203,9 @@ vec3 PathTrace(Ray r)
 
   for(int depth = 0; depth < rtxState.maxDepth; depth++)
   { 
-
+    //prd.depth = depth;
+    //ClosestHitParameterized(r,depth);
     ClosestHit(r,depth);
-    
 
     uint64_t shadingStart = clockRealtimeEXT();
     // Hitting the environment

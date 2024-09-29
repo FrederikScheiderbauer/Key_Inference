@@ -68,10 +68,10 @@ struct PtPayload
   int depth;
   Ray r;
   uint sortMode;
-  uint64_t shadeTiming;
-  uint64_t rtTiming;
-  uint64_t sortTiming;
-  uint64_t traceTiming;
+  //uint64_t shadeTiming;
+  //uint64_t rtTiming;
+  //uint64_t sortTiming;
+  //uint64_t traceTiming;
 };
 
 

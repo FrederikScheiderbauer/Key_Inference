@@ -84,7 +84,8 @@ END_ENUM();
 START_ENUM(EnvBindings)
   eSunSky     = 0, 
   eHdr        = 1, 
-  eImpSamples = 2 
+  eImpSamples = 2,
+  eSortParameters = 3 
 END_ENUM();
 
 
@@ -217,7 +218,9 @@ struct RtxState
   float maxSceneExtent;
   vec3 SceneMax;
   vec3 SceneMin;
-  uint activeSortMode;
+  int gridX;
+  int gridY;
+  int gridZ;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -355,28 +358,60 @@ END_ENUM();
 struct TimingData
 {
   uint frame;
+  uint64_t frameTime;
+  uint64_t frameTimeThreads;
+
   uint64_t full_time;
-  uint full_time_threads;
+  uint64_t full_time_threads;
+
   uint activeMode;
   uint64_t noSortTime;
-  uint noSortThreads;
+  uint64_t noSortThreads;
   uint64_t hitObjectTime;
-  uint hitObjectThreads;
+  uint64_t hitObjectThreads;
   uint64_t originTime;
-  uint originThreads;
+  uint64_t originThreads;
   uint64_t reisTime;
-  uint reisThreads;
+  uint64_t reisThreads;
   uint64_t costaTime;
-  uint costaThreads;
+  uint64_t costaThreads;
   uint64_t ailaTime;
-  uint ailaThreads;
+  uint64_t ailaThreads;
   uint64_t twoPointTime;
-  uint twoPointThreads;
+  uint64_t twoPointThreads;
   uint64_t endPointEstTime;
-  uint endPointEstThreads;
+  uint64_t endPointEstThreads;
   uint64_t endEstAdaptiveTime;
-  uint endEstAdaptiveThreads;
+  uint64_t endEstAdaptiveThreads;
 };
+
+struct Inputs
+{
+  uint NumberOfPrimitives;
+  uint NumberOfTriangles;
+  vec3 CameraPosition;
+  vec3 CameraTarget;
+  float DiffuseRatio;
+  float LargestExtent;
+  uint NumberOfLights;
+};
+
+//Uniform Buffer to tell the gpu how to form the Sorting Key
+struct SortingParameters
+{
+  
+  uint numCoherenceBitsTotal; //1-32 Zero meaning No sorting
+  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
+  //Which Information to use
+  bool noSort;
+  bool hitObject;
+  bool rayOrigin;
+  bool rayDirection;
+  bool estimatedEndpoint;
+  bool realEndpoint;
+  bool isFinished;
+};
+
 
 
 #endif  // COMMON_HOST_DEVICE

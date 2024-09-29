@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <limits>
 
+
 #define VMA_IMPLEMENTATION
 
 #include "shaders/host_device.h"
@@ -90,7 +91,14 @@ void SampleExample::setup(const VkInstance&               instance,
   {
     profilingStats.push_back(stats);
   }
+
   
+  //std::random_device dev;
+  std::mt19937 rng2(dev());
+  rng = rng2;
+
+
+  buildSortingGrid();
 }
 
 
@@ -186,6 +194,7 @@ void SampleExample::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 
   m_scene.updateCamera(cmdBuf, aspectRatio);
   vkCmdUpdateBuffer(cmdBuf, m_sunAndSkyBuffer.buffer, 0, sizeof(SunAndSky), &m_sunAndSky);
+  vkCmdUpdateBuffer(cmdBuf, m_sortingParametersBuffer.buffer, 0, sizeof(SortingParameters), &(dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod])->m_SERParameters));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -227,6 +236,7 @@ void SampleExample::createDescriptorSetLayout()
 
 
   m_bind.addBinding({EnvBindings::eSunSky, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_MISS_BIT_KHR | flags});
+  m_bind.addBinding({EnvBindings::eSortParameters, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_MISS_BIT_KHR | flags});
   m_bind.addBinding({EnvBindings::eHdr, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, flags});  // HDR image
   m_bind.addBinding({EnvBindings::eImpSamples, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flags});   // importance sampling
 
@@ -238,11 +248,12 @@ void SampleExample::createDescriptorSetLayout()
   // Using the environment
   std::vector<VkWriteDescriptorSet> writes;
   VkDescriptorBufferInfo            sunskyDesc{m_sunAndSkyBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo            sortParametersDesc{m_sortingParametersBuffer.buffer, 0, VK_WHOLE_SIZE};
   VkDescriptorBufferInfo            accelImpSmpl{m_skydome.m_accelImpSmpl.buffer, 0, VK_WHOLE_SIZE};
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eSunSky, &sunskyDesc));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eHdr, &m_skydome.m_texHdr.descriptor));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eImpSamples, &accelImpSmpl));
-  //writes.emplace_back(m_bind.makeWrite(m_descSet, SortingBindings::eTiming, &timingDesc));
+  writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eSortParameters, &sortParametersDesc));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
@@ -268,8 +279,13 @@ void SampleExample::updateHdrDescriptors()
 void SampleExample::createUniformBuffer()
 {
   m_sunAndSkyBuffer = m_alloc.createBuffer(sizeof(SunAndSky), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);                               
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   NAME_VK(m_sunAndSkyBuffer.buffer);
+
+  m_sortingParametersBuffer = m_alloc.createBuffer(sizeof(SortingParameters), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); 
+  NAME_VK(m_sortingParametersBuffer.buffer);                           
+  
 }
 
 
@@ -281,7 +297,7 @@ void SampleExample::destroyResources()
 {
   // Resources
   m_alloc.destroy(m_sunAndSkyBuffer);
-  //m_alloc.destroy(m_profilingBuffer);
+  m_alloc.destroy(m_sortingParametersBuffer);
 
   // Descriptors
   vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
@@ -339,8 +355,8 @@ void SampleExample::renderGui(nvvk::ProfilerVK& profiler)
 // - Destroy the previous one.
 void SampleExample::createRender(RndMethod method)
 {
-  if(method == m_rndMethod)
-    return;
+  //if(method == m_rndMethod)
+  //  return;
 
   LOGI("Switching renderer, from %d to %d \n", m_rndMethod, method);
   if(m_rndMethod != eNone)
@@ -354,6 +370,15 @@ void SampleExample::createRender(RndMethod method)
       m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
 }
 
+void SampleExample::rebuildRender()
+{
+  vkDeviceWaitIdle(m_device);
+  m_pRender[m_rndMethod]->destroy();
+  m_pRender[m_rndMethod]->create(
+      m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
+
+}
+
 //--------------------------------------------------------------------------------------------------
 // Creating the render: RTX, Ray Query, ...
 // - Destroy the previous one.
@@ -364,9 +389,10 @@ void SampleExample::reloadRender()
   LOGI("Reloading renderer\n");
 
   vkDeviceWaitIdle(m_device);  // cannot destroy while in use
-  m_pRender[m_rndMethod]->destroy();
+  //m_pRender[m_rndMethod]->destroy();
   m_pRender[m_rndMethod]->create(
       m_size, {m_accelStruct.getDescLayout(), m_offscreen.getDescLayout(), m_scene.getDescLayout(), m_descSetLayout}, &m_scene);
+
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -416,6 +442,7 @@ void SampleExample::drawPost(VkCommandBuffer cmdBuf)
     m_axis.display(cmdBuf, CameraManip.getMatrix(), m_size);
 }
 
+
 //////////////////////////////////////////////////////////////////////////
 // Ray tracing
 //////////////////////////////////////////////////////////////////////////
@@ -452,15 +479,87 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   m_rtxState.maxSceneExtent = length(m_scene.getScene().m_dimensions.max - m_scene.getScene().m_dimensions.min);
   m_rtxState.SceneMax = m_scene.getScene().m_dimensions.max;
   m_rtxState.SceneMin = m_scene.getScene().m_dimensions.min;
+  m_rtxState.gridX = grid_x;
+  m_rtxState.gridY = grid_y;
+  m_rtxState.gridZ = grid_z;
+  
 
+
+glm::vec3 distScene = m_rtxState.SceneMax - m_rtxState.SceneMin;
+glm::vec3 cameraPos = CameraManip.getEye();
+glm::vec3 gridSizes = glm::vec3(distScene.x/grid_x,distScene.y/grid_y, distScene.z/grid_z);
+
+float epsilon = 0.001f; // to ensure correct grid placement
+
+//clip cameraPos to bounds of Scene
+glm::vec3 clippedCameraPos = glm::vec3(glm::min(glm::max(cameraPos.x,m_rtxState.SceneMin.x),m_rtxState.SceneMax.x-epsilon),glm::min(glm::max(cameraPos.y,m_rtxState.SceneMin.y),m_rtxState.SceneMax.y-epsilon),glm::min(glm::max(cameraPos.z,m_rtxState.SceneMin.z),m_rtxState.SceneMax.z-epsilon));
+
+//if(cameraPos.x >m_rtxState.SceneMax.x || cameraPos.x < m_rtxState.SceneMin.x ||cameraPos.y >m_rtxState.SceneMax.y || cameraPos.y < m_rtxState.SceneMin.y ||cameraPos.z >m_rtxState.SceneMax.z || cameraPos.z < m_rtxState.SceneMin.z)
+//{
+  //currentGridSpace = glm::vec3(-1,-1,-1);
+//} else 
+{
+  glm::vec3 relativeCamPosition = clippedCameraPos - m_rtxState.SceneMin;
+
+  int gridSpaceX = glm::floor(relativeCamPosition.x / gridSizes.x);
+  int gridSpaceY = glm::floor(relativeCamPosition.y / gridSizes.y);
+  int gridSpaceZ = glm::floor(relativeCamPosition.z / gridSizes.z);
+
+  currentGridSpace = glm::vec3(gridSpaceX,gridSpaceY,gridSpaceZ);
+}
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
+
+  /*
+    nvh::Profiler::TimerInfo info;
+  profiler.getTimerInfo("Render Section",info);
+  printf("=============");
+  printf("\n");
+  printf("timerInfo: ");
+  printf(std::to_string((info.gpu.average)).c_str());
+  printf("\n");
+  */
   
   auto render_ID = profiler.beginSection("Render Section",cmdBuf);
   m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
                               {m_accelStruct.getDescSet(), m_offscreen.getDescSet(), m_scene.getDescSet(), m_descSet});
   profiler.endSection(render_ID,cmdBuf);
+
+
+
+
+
+
+
+  /*
+  double m_seconds = profiler.getMicroSeconds();
+  printf("microseconds: ");
+  printf( std::to_string(m_seconds).c_str());
+  printf("\n");
+
+  uint32_t frames = profiler.getTotalFrames();
+  printf("frames: ");
+  printf( std::to_string(frames).c_str());
+  printf("\n");
+
+  printf("numAveragedValues: ");
+  printf( std::to_string(info.numAveraged).c_str());
+  printf("\n");
+
+  uint32_t subFrame =  profiler.getSubFrame(render_ID);
+
+  printf("subFrame: ");
+  printf( std::to_string(subFrame).c_str());
+  printf("\n");
+  */
+  /*
+  uint32_t subFrame =  profiler.getSubFrame(render_ID);
+  double gpuTime;
+  profiler.getSectionTime(render_ID,subFrame,gpuTime);
+  */
+
+  //info.
 
 
 /*
@@ -481,8 +580,15 @@ END_ENUM();
 auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
 int sortMode = *(rtx->getSortingMode());
 
-if(sortMode == eInferKey)
-{
+
+
+/*
+
+
+
+//m_SERParameters = createSortingParameters();
+
+
 
   const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getTimingBuffer().buffer,0,sizeof(TimingData));
   TimingData timeData;
@@ -492,101 +598,74 @@ if(sortMode == eInferKey)
   int correctFrame = 0;
   recoveredFrame[correctFrame] = timeData.frame;
 
-  recovered_time =timeData.originTime;
+  recovered_time =timeData.full_time;
   uint64_t one = 1;
-  avg_full_time = (recovered_time/glm::max(timeData.originThreads,1u));
-
-  //m_staging.releaseResources();
-  std::vector<float> test;
-  if(m_rtxState.frame > 10)
-  {
-    test.emplace_back(timeData.noSortTime / timeData.noSortThreads);
-    test.emplace_back(timeData.hitObjectTime/ timeData.hitObjectThreads);
-    test.emplace_back(timeData.originTime/ timeData.originThreads);
-    test.emplace_back(timeData.reisTime/ timeData.reisThreads);
-    test.emplace_back(timeData.costaTime/ timeData.costaThreads);
-    test.emplace_back(timeData.ailaTime/ timeData.ailaThreads);
-    test.emplace_back(timeData.twoPointTime/ timeData.twoPointThreads);
-    test.emplace_back(timeData.endPointEstTime/ timeData.endPointEstThreads);
-    test.emplace_back(timeData.endEstAdaptiveTime/ timeData.endEstAdaptiveThreads);
-
-    float fastest = std::numeric_limits<float>::max();
-    int fastest_index = 0;
-    for(int index =0; index < test.size();index++)
-    {
-      if(test[index] < fastest)
-      {
-        fastest = test[index];
-        fastest_index = index;
-      }
-    }
-    bestSortMode = fastest_index;
-  }
-
-}
-  //test.emplace_back(timeData.noSortTime / timeData.noSortThreads);
-  /*
-  test.emplace_back(timeData.hitObjectTime/ timeData.hitObjectThreads);
-  test.emplace_back(timeData.originTime/ timeData.originThreads);
-  test.emplace_back(timeData.reisTime/ timeData.reisThreads);
-  test.emplace_back(timeData.costaTime/ timeData.costaThreads);
-  test.emplace_back(timeData.ailaTime/ timeData.ailaThreads);
-  test.emplace_back(timeData.twoPointTime/ timeData.twoPointThreads);
-  test.emplace_back(timeData.endPointEstTime/ timeData.endPointEstThreads);
-  test.emplace_back(timeData.endEstAdaptiveTime/ timeData.endEstAdaptiveThreads);
-  */
+  avg_full_time = (recovered_time/glm::max(timeData.full_time_threads,one));
 
 
+  uint32_t subFrame =  profiler.getSubFrame(render_ID);
+  printf("subFrame: ");
+  printf( std::to_string(subFrame).c_str());
+  printf("\n");
 
+  printf("gpu: ");
+  printf(std::to_string((timeData.frame % 4)).c_str());
+  printf("\n");
 
+  double gpuTime = profiler.getGPUTime(render_ID,1);
+  printf("gpuTime: ");
+  printf(std::to_string((gpuTime)).c_str());
+  printf("\n");
+
+*/
 //receive profiling data from gpu
-
+/*
 if(rtx->m_enableProfiling)
 {
-size_t render_extent = render_size.width * render_size.height;
+  size_t render_extent = render_size.width * render_size.height;
 
 
-if(render_extent != profilingStats[sortMode].size())
-{
-  profilingStats[sortMode].resize(render_extent);
-  std::cout << "resizing profiling Buffer" << std::endl;
-}
-
-
-if(m_rtxState.frame <1)
-{
-  std::vector<ProfilingStats> newStats;
-  profilingStats[sortMode] = newStats;
-  profilingStats[sortMode].resize(render_extent);
-  std::cout << "reset profile buffer " << std::endl;
-}
-
-
-  int row = m_rtxState.frame % render_size.height;
-  size_t size = render_size.width * render_size.height * sizeof(ProfilingStats);
-  size_t offset = row * size;
-
-  const void* profileData = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,size);
-  //const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,render_size.width* render_size.height* sizeof(ProfilingStats));
-  
-  ProfilingStats* statsPointer = (ProfilingStats*) profileData;
-  //memcpy(profilingStats.data()+(render_size.width*row),data,size);
-  memcpy(profilingStats[sortMode].data(),statsPointer,size);
-
-  //
-/*
-  for(uint64_t i = 0; i < size; i++)
+  if(render_extent != profilingStats[sortMode].size())
   {
-    float divisor = 1.0f/(float)(m_rtxState.frame +1);
-
-    profilingStats[sortMode][i] = statsPointer[i];
+    profilingStats[sortMode].resize(render_extent);
+    std::cout << "resizing profiling Buffer" << std::endl;
   }
-  */
 
+
+  if(m_rtxState.frame <1)
+  {
+    std::vector<ProfilingStats> newStats;
+    profilingStats[sortMode] = newStats;
+    profilingStats[sortMode].resize(render_extent);
+    std::cout << "reset profile buffer " << std::endl;
+  }
+
+
+    int row = m_rtxState.frame % render_size.height;
+    size_t size = render_size.width * render_size.height * sizeof(ProfilingStats);
+    size_t offset = row * size;
+
+    const void* profileData = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,size);
+    //const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,render_size.width* render_size.height* sizeof(ProfilingStats));
+    
+    ProfilingStats* statsPointer = (ProfilingStats*) profileData;
+    //memcpy(profilingStats.data()+(render_size.width*row),data,size);
+    memcpy(profilingStats[sortMode].data(),statsPointer,size);
+
+    
+
+    //
   
-}
+    for(uint64_t i = 0; i < size; i++)
+    {
+      float divisor = 1.0f/(float)(m_rtxState.frame +1);
 
-  m_staging.releaseResources();
+      profilingStats[sortMode][i] = statsPointer[i];
+    }
+    
+}
+*/
+  //m_staging.releaseResources();
 
 //*/
 
@@ -598,6 +677,7 @@ if(m_rtxState.frame <1)
     auto slot = profiler.timeRecurring("Mipmap", cmdBuf);
     m_offscreen.genMipmap(cmdBuf);
   }
+
 }
 
 
@@ -726,4 +806,150 @@ void SampleExample::onMouseButton(int button, int action, int mods)
     m_descaling = false;
     resetFrame();
   }
+}
+
+bool parametersLegalCheck(SortingParameters parameters)
+{ 
+  //both th information for the actua ray endpoint or the hitobject sorting only exist after Ray traversal has been performed
+  //So a parameter set that uses them before Ray traversal would be illegal
+  // we also disqualify estimated Endpoint information with either setting, sicne they are redundant
+  if((parameters.realEndpoint || parameters.hitObject) && (parameters.estimatedEndpoint || (!parameters.sortAfterASTraversal)))
+  {
+    return false;
+  }
+  // we  disqualify estimated Endpoint information being used after ray traversal, since that would be redundant
+  if(parameters.estimatedEndpoint && parameters.sortAfterASTraversal)
+  {
+    return false;
+  }
+  if(parameters.noSort &&(parameters.hitObject))
+  {
+    return false;
+  }
+  return true;
+}
+SortingParameters SampleExample::createSortingParameters()
+{
+  SortingParameters result;
+  bool isLegal = false;
+  std::uniform_int_distribution<std::mt19937::result_type> dist32(1,32);
+  std::uniform_int_distribution<std::mt19937::result_type> distBool(0,1);
+
+  while(!isLegal)
+  {
+
+    //random number of coherence Bits
+    result.numCoherenceBitsTotal = dist32(rng);
+    result.sortAfterASTraversal = distBool(rng);
+    result.estimatedEndpoint = distBool(rng);
+    result.realEndpoint = distBool(rng);
+    result.noSort = distBool(rng);
+    result.hitObject = distBool(rng);
+    result.rayDirection = distBool(rng);
+    result.rayOrigin =  distBool(rng);
+    result.isFinished = distBool(rng);
+
+
+
+    isLegal = parametersLegalCheck(result);
+  }
+  return result;
+}
+
+void SampleExample::doCycle()
+{
+  //timer
+  if(framesThisCycle == 0)
+  {
+    framesThisCycle++;
+    auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+
+    return;
+  }
+ timeRemaining -= ImGui::GetIO().DeltaTime * 1000;
+ framesThisCycle++;
+
+ if(timeRemaining < 0.0)
+ {
+  printf(std::to_string(framesThisCycle).c_str());
+  printf("\n");
+  timeRemaining = timePerCycle;
+  auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+  int hashCode = rtx->hashParameters(rtx->m_SERParameters);
+  bool foundOne = false;
+
+  GridSpace* currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
+  
+  for(int i = 0; i < currentGrid->observedData.size(); i++)
+  {
+    if(hashCode == currentGrid->observedData[i].hashCode)
+    {
+      currentGrid->observedData[i].frames = framesThisCycle;
+      currentGrid->observedData[i].fps = framesThisCycle*1000/timePerCycle;
+      foundOne = true;
+      break;
+    }
+  }
+  if(!foundOne)
+  {
+    TimingObject newTiming;
+    newTiming.hashCode = hashCode;
+    newTiming.frames = framesThisCycle;
+    newTiming.fps = framesThisCycle*1000/timePerCycle;
+    currentGrid->observedData.emplace_back(newTiming);
+  }
+
+  framesThisCycle = 0;
+  float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+  
+  //with probably epsilon explore the parameter space for new Combinations to test
+  float epsilon = useConstantGridLearning ? constantGridlearningSpeed : currentGrid->adaptiveGridLearningRate;
+  if(r < epsilon)
+  {
+    rtx->m_SERParameters= createSortingParameters();
+    reloadRender();
+    printf("explore\n");
+    if(!useConstantGridLearning)
+    {
+      currentGrid->adaptiveGridLearningRate -= currentGrid->adaptiveGridLearningRate/10.0f;
+      currentGrid->adaptiveGridLearningRate = glm::max(currentGrid->adaptiveGridLearningRate,0.1f);
+    }
+  }
+  //otherwise exploit
+  else {
+    
+    float fastestTime = 0.0;
+    int fastestHash = 0;
+    for(TimingObject timing: currentGrid->observedData)
+    {
+      if(timing.fps > fastestTime)
+      {
+        fastestTime = timing.fps;
+        fastestHash = timing.hashCode;
+      }
+      
+    }
+    printf("exploit\n");
+
+    if(hashCode != fastestHash)
+    {
+      SortingParameters newSetting = rtx->rebuildFromhash(fastestHash);
+      rtx->m_SERParameters = newSetting;
+      reloadRender();
+      printf("chose faster one\n");
+    }
+    
+  }
+ }
+
+}
+
+
+void SampleExample::buildSortingGrid()
+{
+  std::vector<std::vector<std::vector<GridSpace>>> newSortingGrid;
+  //newSortingGrid.resize(grid_y,std::vector<GridSpace>(grid_x));
+  newSortingGrid.resize(grid_z,std::vector<std::vector<GridSpace> >(grid_y,std::vector<GridSpace>(grid_x)));
+  sortingGrid = newSortingGrid;
+  printf("build new Grid with dimension %d , %d \n",grid_y,grid_x);
 }

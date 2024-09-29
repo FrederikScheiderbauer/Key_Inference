@@ -40,7 +40,7 @@
 #extension GL_EXT_debug_printf : enable
 #extension GL_EXT_shader_atomic_int64 : enable
 
-#extension GL_NV_shader_invocation_reorder : enable
+#extension GL_NV_shader_invocation_reorder : require
 
 #include "host_device.h"
 
@@ -55,8 +55,15 @@ layout(location = 1) rayPayloadEXT ShadowHitPayload shadow_payload;
 layout(location = 0) hitObjectAttributeNV vec3 objAttribs;
 
 layout(constant_id = 0) const uint SORTING_MODE = 0;
-layout(constant_id = 1) const int NUM_COHERENCE_BITS = 32;
-layout(constant_id = 2) const bool USE_PROFILING = true;
+layout(constant_id = 1) const bool USE_PROFILING = true;
+layout(constant_id = 2) const bool NOSORTING = false;
+layout(constant_id = 3) const bool HITOBJECT = false;
+layout(constant_id = 4) const bool RAYORIGIN = false;
+layout(constant_id = 5) const bool RAYDIRECTION = false;
+layout(constant_id = 6) const bool ESTENDPOINT = false;
+layout(constant_id = 7) const bool REALENDPOINT = false;
+layout(constant_id = 8) const bool AFTERASTRAVERSAL = false;
+layout(constant_id = 9) const bool ISFINISHED = false;
 
 
 layout(push_constant) uniform _RtxState
@@ -73,6 +80,8 @@ layout(push_constant) uniform _RtxState
 #include "profiler.glsl"
 
 
+
+
 uint chooseSortMode()
 {
   uint v1 = pcg(prd.seed);
@@ -81,37 +90,13 @@ uint chooseSortMode()
   return s_Mode;
 }
 
-/*
-START_ENUM(SortingMode)
-  eNoSorting   = 0, //
-  eHitObject   = 1, //
-  eOrigin      = 2, //
-  eReis        = 3, // Sort by Origin Direction
-  eCosta       = 4, // Sort by Direction Origin
-  eAila        = 5, // Sort by Origin Direction Interleaved
-  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
-  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
-  eEndEstAdaptive = 8, //
-  eInferKey    = 9,
-  eNumSortModes = 10 //  Number of actual Sorting Modes
-END_ENUM();
-*/
-
-/*
-  uint activeMode;
-  uint64_t noSortTime;
-  uint64_t hitObjectTime;
-  uint64_t originTime;
-  uint64_t reisTime;
-  uint64_t costaTime;
-  uint64_t ailaTime;
-  uint64_t endPointEstTime;
-  uint64_t endEstAdaptiveTime;
-*/
 
 void main()
 {
-  setupProfiler();
+  //setupProfiler();
+
+
+  uint coherenceBits = _sortingParameters.numCoherenceBitsTotal;
   
   uint accumulationFrames = 20;
 
@@ -121,6 +106,25 @@ void main()
 
   int ID = imageCoords.y * imageRes.x + imageCoords.x;
 
+/*
+  if(ID ==1)
+  {
+    atomicMin(timeData.frameTime,0);
+    atomicMin(timeData.frameTimeThreads,0);
+
+  }
+
+  if(ID ==2)
+  {
+
+    if(rtxState.frame < 1)
+    {
+      atomicMin(timeData.full_time,0);
+      atomicMin(timeData.full_time_threads,0);
+    }
+  }
+  
+*/
   // Initialize the seed for the random number
   prd.seed = initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, rtxState.frame);
   uint sortMode;
@@ -130,22 +134,21 @@ void main()
     //if(rtxState.frame < accumulationFrames)
     //{
       //sortMode = chooseSortMode();
-      sortMode = rtxState.frame % (eNumSortModes-1);
+      sortMode = uint(float(rtxState.frame)/128.0) % ( eNumSortModes-1);
     //}
-    /*
-    else {
-      sortMode = 1;
-    }
-    */
+
     if(rtxState.frame < 1)
     {
-      resetTimings(ID);
+      //resetTimings(ID);
       
     }
-  }
+  }else {
+      sortMode = SORTING_MODE;
+    }
 
 
   uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
+  uint64_t start2 = clockARB();  // Debug - Heatmap
   vec3 pixelColor = vec3(0);
   for(int smpl = 0; smpl < rtxState.maxSamples; ++smpl)
   {
@@ -153,9 +156,10 @@ void main()
     pixelColor += samplePixel(imageCoords, imageRes);  // See pathtrace.glsl
   }
   uint64_t end  = clockRealtimeEXT();
+  uint64_t end2  = clockARB();
   uint64_t duration = end -start;
 
-
+/*
   if(USE_PROFILING)
   {
 
@@ -180,27 +184,26 @@ void main()
       profilingStats[ID].traceTiming.avg_time = profilingStats[ID].traceTiming.abs_time / (rtxState.frame+1);
     }
   }
+  */
 
   pixelColor /= rtxState.maxSamples;
 
-
-
-  if(SORTING_MODE==eInferKey)
+/*
+  if(rand(prd.seed) <0.1)
   {
-    //if(rtxState.frame < accumulationFrames && prd.hitT != INFINITY)
-    //{
-      accumulateSamplesAdd(sortMode,duration);
-      //accumulateSamplesMax(sortMode,duration);
+    accumulateSamplesAdd(sortMode,duration);
+    //accumulateSamplesMax(sortMode,duration);
     //}
     timeData.frame = uint(rtxState.frame);
 
     atomicAdd(timeData.full_time,duration);
     atomicAdd(timeData.full_time_threads,1);
-    
-    
-    //atomicMax(timeData.full_time,duration);
-    //atomicMax(timeData.full_time_threads,1);
+
+    atomicAdd(timeData.frameTime,duration);
+    atomicAdd(timeData.frameTimeThreads,1);
+
   }
+*/
 
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)

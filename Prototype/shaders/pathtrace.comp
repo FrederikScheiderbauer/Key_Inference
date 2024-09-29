@@ -56,7 +56,7 @@ ShadowHitPayload shadow_payload;
 #include "common.glsl"
 #include "traceray_rq.glsl"
 
-#include "pathtrace.glsl"
+//#include "pathtrace.glsl"
 
 #define FIREFLIES 1
 
@@ -86,6 +86,7 @@ ivec2 SampleSizzled()
 //
 void main()
 {
+  /*
   uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
 
   ivec2 imageRes    = rtxState.size;
@@ -131,4 +132,5 @@ void main()
     // First frame, replace the value in the buffer
     imageStore(resultImage, imageCoords, vec4(pixelColor, 1.f));
   }
+  */
 }

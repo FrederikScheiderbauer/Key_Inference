@@ -70,6 +70,8 @@ void SampleGUI::render(nvvk::ProfilerVK& profiler)
       changed |= guiCamera();
     if(ImGui::CollapsingHeader("Ray Tracing" /*, ImGuiTreeNodeFlags_DefaultOpen*/))
       changed |= guiRayTracing();
+    if(ImGui::CollapsingHeader("SortingGrid Learning" /*, ImGuiTreeNodeFlags_DefaultOpen*/))
+      changed |= guiSortingGrid();
     if(ImGui::CollapsingHeader("Tonemapper" /*, ImGuiTreeNodeFlags_DefaultOpen*/))
       changed |= guiTonemapper();
     if(ImGui::CollapsingHeader("Environment" /*, ImGuiTreeNodeFlags_DefaultOpen*/))
@@ -103,6 +105,13 @@ void SampleGUI::render(nvvk::ProfilerVK& profiler)
   {
     _se->setRenderRegion(VkRect2D{{}, _se->getSize()});
   }
+
+  if(_se->activateParametertesting)
+  {
+    _se->doCycle();
+    
+  }
+  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -125,6 +134,7 @@ bool SampleGUI::guiRayTracing()
 {
   auto  Normal = ImGuiH::Control::Flags::Normal;
   bool  changed{false};
+  bool changedGrid{false};
   auto& rtxState(_se->m_rtxState);
 
   changed |= GuiH::Slider("Max Ray Depth", "", &rtxState.maxDepth, nullptr, Normal, 1, 40);
@@ -151,6 +161,29 @@ bool SampleGUI::guiRayTracing()
       rtx->useAnyHit(bAnyHit);
       changed = true;
     }
+    if(GuiH::button("randomize Parameters","new parameters",""))
+    {
+      rtx->m_SERParameters= _se->createSortingParameters();
+      _se->reloadRender();
+
+    }
+    ImGui::Text("Sorting Parameter");
+    ImGui::Text(("NumCoherenceBitsTotal: "+ std::to_string(rtx->m_SERParameters.numCoherenceBitsTotal)).c_str());
+    ImGui::Text(("sortAfterASTraversal: "+ std::to_string(rtx->m_SERParameters.sortAfterASTraversal)).c_str());
+    ImGui::Text(("No Sorting: "+ std::to_string(rtx->m_SERParameters.noSort)).c_str());
+    ImGui::Text(("hitObject: "+ std::to_string(rtx->m_SERParameters.hitObject)).c_str());
+    ImGui::Text(("rayOrigin: "+ std::to_string(rtx->m_SERParameters.rayOrigin)).c_str());
+    ImGui::Text(("rayDirection: "+ std::to_string(rtx->m_SERParameters.rayDirection)).c_str());
+    ImGui::Text(("estimatedEndpoint: "+ std::to_string(rtx->m_SERParameters.estimatedEndpoint)).c_str());
+    ImGui::Text(("realEndpoint: "+ std::to_string(rtx->m_SERParameters.realEndpoint)).c_str());
+    ImGui::Text(("isFinished: "+ std::to_string(rtx->m_SERParameters.isFinished)).c_str());
+
+    if(ImGui::CollapsingHeader("Sorting Parameters"))
+    {
+
+    }
+    
+
     if(GuiH::Checkbox("Enable Profiling", "",
                       &bProfiling, nullptr))
     {
@@ -159,8 +192,11 @@ bool SampleGUI::guiRayTracing()
       rtx->enableProfiling(bProfiling);
       changed = true;
     }
-    ImGui::Text(std::to_string(_se->bestSortMode).c_str());
-    if(GuiH::Selection("Sorting Mode", "Display unique values of material", rtx->getSortingMode(), nullptr, Normal,{
+    GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
+    ImGui::RadioButton("Manual",&manualSorting, 1);
+    if(manualSorting > 0)
+    {
+      if(GuiH::Selection("Sorting Mode", "Display unique values of material", rtx->getSortingMode(), nullptr, Normal,{
                                    "No Sorting",
                                    "HitObject",
                                    "Sort by Origin",
@@ -171,17 +207,15 @@ bool SampleGUI::guiRayTracing()
                                    "Endpoint Estimation",
                                    "Adaptive Endpoint Estimation",
                                    "Infer Sorting Key",}))
-    {
-      vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
-      _se->reloadRender();
-      changed = true;
+      {
+        vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
+        _se->reloadRender();
+        changed = true;
+      }
     }
-    if(GuiH::Slider("Number Coherence Bits", "", rtx->getNumCoherenceBits(), nullptr, Normal, 1, 64))
-    {
-      vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
-      _se->reloadRender();
-      changed = true;
-    }
+
+    //changed |= GuiH::Slider("Number Coherence Bits", "", &_se->m_SERParameters.numCoherenceBitsTotal, nullptr, Normal, 0u, 64u);
+    GuiH::Slider("Number Coherence Bits", "", &rtx->m_SERParameters.numCoherenceBitsTotal, nullptr, Normal, 0u, 64u);
   }
   
   GuiH::Group<bool>("Profiling", false, [&] {
@@ -265,10 +299,6 @@ bool SampleGUI::guiRayTracing()
                             &rtxState.maxHeatmap, nullptr, Normal, 0, 1'000'000, 100);
     }
 
-    
-    
-
-    
     return changed;
   });
 
@@ -292,6 +322,35 @@ bool SampleGUI::guiRayTracing()
   return changed;
 }
 
+
+bool SampleGUI::guiSortingGrid()
+
+{
+  bool changed{false};
+  auto  Normal = ImGuiH::Control::Flags::Normal;
+
+  if(GuiH::Slider("Grid X", "", &_se->grid_x, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Y", "", &_se->grid_y, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Z", "", &_se->grid_z, nullptr, Normal, 1, 10))
+  {
+    _se->buildSortingGrid();
+  }
+  ImGui::Text(("Current Grid Position [x,y,z]: ("+  std::to_string(_se->currentGridSpace.x) + "," +  std::to_string(_se->currentGridSpace.y)  + "," +  std::to_string(_se->currentGridSpace.z) + ")").c_str());
+  float currentAdaptiveLearningRate = _se->sortingGrid[_se->currentGridSpace.z][_se->currentGridSpace.y][_se->currentGridSpace.x].adaptiveGridLearningRate;
+  
+
+  GuiH::Checkbox("Use Constant Grid Learning Speed","",&_se->useConstantGridLearning);
+  if(_se->useConstantGridLearning)
+  {
+    GuiH::Slider("Constant Learning Speed","",&_se->constantGridlearningSpeed,nullptr,Normal,0.01f,1.0f,nullptr);
+  } else 
+  {
+    ImGui::Text(("Current Grid Cell learning Rate: "+ std::to_string(currentAdaptiveLearningRate)).c_str());
+  }
+
+  //printf("Current Grid Position [x,y]: (%d , %d)\n", _se->currentGridSpace.x,_se->currentGridSpace.y);
+
+
+  return changed;
+}
 
 bool SampleGUI::guiTonemapper()
 {
@@ -531,19 +590,24 @@ bool SampleGUI::guiProfiler(nvvk::ProfilerVK& profiler)
   }
   
 
+
   ImGui::Text("Frame     [ms]: %2.3f", display.frameTime);
   ImGui::Text("Render GPU/CPU [ms]: %2.3f  /  %2.3f", display.statRender.x, display.statRender.y);
 
-  ImGui::Text("gpu time   [ms]: %2.3f", (double) (_se->latest_timeData.full_time/glm::max(_se->latest_timeData.full_time_threads, 1u)));
-  ImGui::Text("noSort time   [ms]: %2.3f", (double) (_se->latest_timeData.noSortTime/glm::max(_se->latest_timeData.noSortThreads, 1u)));
-  ImGui::Text("hitobject time   [ms]: %2.3f", (double) (_se->latest_timeData.hitObjectTime/glm::max(_se->latest_timeData.hitObjectThreads, 1u)));
-  ImGui::Text("origin time   [ms]: %2.3f", (double) (_se->latest_timeData.originTime/glm::max(_se->latest_timeData.originThreads, 1u)));
-  ImGui::Text("reis time   [ms]: %2.3f", (double) (_se->latest_timeData.reisTime/glm::max(_se->latest_timeData.reisThreads, 1u)));
-  ImGui::Text("costa time   [ms]: %2.3f", (double) (_se->latest_timeData.costaTime/glm::max(_se->latest_timeData.costaThreads, 1u)));
-  ImGui::Text("aila time   [ms]: %2.3f", (double) (_se->latest_timeData.ailaTime/glm::max(_se->latest_timeData.ailaThreads, 1u)));
-  ImGui::Text("twopoint time   [ms]: %2.3f", (double) (_se->latest_timeData.twoPointTime/glm::max(_se->latest_timeData.twoPointThreads, 1u)));
-  ImGui::Text("endpoint time   [ms]: %2.3f", (double) (_se->latest_timeData.endPointEstTime/glm::max(_se->latest_timeData.endPointEstThreads, 1u)));
-  ImGui::Text("adaptive time   [ms]: %2.3f", (double) (_se->latest_timeData.endEstAdaptiveTime/glm::max(_se->latest_timeData.endEstAdaptiveThreads, 1u)));
+  uint64_t one = 1;
+  ImGui::Text("gpu time   [ms]: %2.3f", (double) (_se->latest_timeData.full_time/glm::max(_se->latest_timeData.full_time_threads, one)));
+
+  ImGui::Text("frame time   [ms]: %2.3f", (double) (_se->latest_timeData.frameTime/glm::max(_se->latest_timeData.frameTimeThreads, one)));
+  ImGui::Text("noSort time   [ms]: %2.3f", (double) (_se->latest_timeData.noSortTime/glm::max(_se->latest_timeData.noSortThreads, one)));
+  ImGui::Text("hitobject time   [ms]: %2.3f", (double) (_se->latest_timeData.hitObjectTime/glm::max(_se->latest_timeData.hitObjectThreads, one)));
+  ImGui::Text("origin time   [ms]: %2.3f", (double) (_se->latest_timeData.originTime/glm::max(_se->latest_timeData.originThreads, one)));
+  ImGui::Text("reis time   [ms]: %2.3f", (double) (_se->latest_timeData.reisTime/glm::max(_se->latest_timeData.reisThreads, one)));
+  ImGui::Text("costa time   [ms]: %2.3f", (double) (_se->latest_timeData.costaTime/glm::max(_se->latest_timeData.costaThreads, one)));
+  ImGui::Text("aila time   [ms]: %2.3f", (double) (_se->latest_timeData.ailaTime/glm::max(_se->latest_timeData.ailaThreads, one)));
+  ImGui::Text("twopoint time   [ms]: %2.3f", (double) (_se->latest_timeData.twoPointTime/glm::max(_se->latest_timeData.twoPointThreads, one)));
+  ImGui::Text("endpoint time   [ms]: %2.3f", (double) (_se->latest_timeData.endPointEstTime/glm::max(_se->latest_timeData.endPointEstThreads, one)));
+  ImGui::Text("adaptive time   [ms]: %2.3f", (double) (_se->latest_timeData.endEstAdaptiveTime/glm::max(_se->latest_timeData.endEstAdaptiveThreads, one)));
+  
 
   ImGui::Text("Frame     : %1d", glm::max(stored_frames[(_se->m_rtxState.frame-4) % 5],0));
   ImGui::Text("Frame gpu : %1d", _se->latest_timeData.frame);
