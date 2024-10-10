@@ -85,7 +85,8 @@ START_ENUM(EnvBindings)
   eSunSky     = 0, 
   eHdr        = 1, 
   eImpSamples = 2,
-  eSortParameters = 3 
+  eSortParameters = 3,
+  eGridKeys = 4
 END_ENUM();
 
 
@@ -215,12 +216,15 @@ struct RtxState
   ivec2 size;                   // rendering size
   int   minHeatmap;             // Debug mode - heat map
   int   maxHeatmap;
-  float maxSceneExtent;
   vec3 SceneMax;
-  vec3 SceneMin;
   int gridX;
+  vec3 SceneMin;
   int gridY;
+  vec3 SceneCenter;
   int gridZ;
+  float DisplayCubeSize;
+  bool VisualizeSortingGrid;      // 0-NoViz,1-Display Cubes
+  int   _pad1; 
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -410,6 +414,17 @@ struct SortingParameters
   bool estimatedEndpoint;
   bool realEndpoint;
   bool isFinished;
+};
+
+
+struct GridCube
+{
+  int up;
+  int down;
+  int front;
+  int back;
+  int left;
+  int right;
 };
 
 

@@ -66,7 +66,11 @@ layout(constant_id = 8) const bool AFTERASTRAVERSAL = false;
 layout(constant_id = 9) const bool ISFINISHED = false;
 
 
-layout(push_constant) uniform _RtxState
+layout(constant_id = 10) const bool VISUALIZE_CUBES = true;
+layout(constant_id = 11) const bool VISUALIZE_GRID = false;
+
+
+layout(std430,push_constant) uniform _RtxState
 {
   RtxState rtxState;
 };
@@ -93,9 +97,8 @@ uint chooseSortMode()
 
 void main()
 {
-  //setupProfiler();
 
-
+  debugPrintfEXT("test");
   uint coherenceBits = _sortingParameters.numCoherenceBitsTotal;
   
   uint accumulationFrames = 20;
@@ -106,45 +109,8 @@ void main()
 
   int ID = imageCoords.y * imageRes.x + imageCoords.x;
 
-/*
-  if(ID ==1)
-  {
-    atomicMin(timeData.frameTime,0);
-    atomicMin(timeData.frameTimeThreads,0);
-
-  }
-
-  if(ID ==2)
-  {
-
-    if(rtxState.frame < 1)
-    {
-      atomicMin(timeData.full_time,0);
-      atomicMin(timeData.full_time_threads,0);
-    }
-  }
-  
-*/
   // Initialize the seed for the random number
   prd.seed = initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, rtxState.frame);
-  uint sortMode;
-  if(SORTING_MODE == eInferKey)
-  {
-    //if first frame use random sorting Mode and accumulate
-    //if(rtxState.frame < accumulationFrames)
-    //{
-      //sortMode = chooseSortMode();
-      sortMode = uint(float(rtxState.frame)/128.0) % ( eNumSortModes-1);
-    //}
-
-    if(rtxState.frame < 1)
-    {
-      //resetTimings(ID);
-      
-    }
-  }else {
-      sortMode = SORTING_MODE;
-    }
 
 
   uint64_t start = clockRealtimeEXT();  // Debug - Heatmap
@@ -159,51 +125,10 @@ void main()
   uint64_t end2  = clockARB();
   uint64_t duration = end -start;
 
-/*
-  if(USE_PROFILING)
-  {
 
-    profilingStats[ID].shadeTiming.abs_time += prd.shadeTiming;
-    profilingStats[ID].sortTiming.abs_time += prd.sortTiming;
-    profilingStats[ID].rtTiming.abs_time += prd.rtTiming;
-    profilingStats[ID].traceTiming.abs_time += duration;
-
-    if(rtxState.frame < 1)
-    {
-
-      profilingStats[ID].shadeTiming.avg_time = prd.shadeTiming;
-      profilingStats[ID].sortTiming.avg_time = prd.sortTiming;
-      profilingStats[ID].rtTiming.avg_time = prd.rtTiming;
-      profilingStats[ID].traceTiming.avg_time = duration;
-    }
-    else {
-      
-      profilingStats[ID].shadeTiming.avg_time = profilingStats[ID].shadeTiming.abs_time / (rtxState.frame+1);
-      profilingStats[ID].sortTiming.avg_time = profilingStats[ID].sortTiming.abs_time / (rtxState.frame+1);
-      profilingStats[ID].rtTiming.avg_time = profilingStats[ID].rtTiming.abs_time / (rtxState.frame+1);
-      profilingStats[ID].traceTiming.avg_time = profilingStats[ID].traceTiming.abs_time / (rtxState.frame+1);
-    }
-  }
-  */
 
   pixelColor /= rtxState.maxSamples;
 
-/*
-  if(rand(prd.seed) <0.1)
-  {
-    accumulateSamplesAdd(sortMode,duration);
-    //accumulateSamplesMax(sortMode,duration);
-    //}
-    timeData.frame = uint(rtxState.frame);
-
-    atomicAdd(timeData.full_time,duration);
-    atomicAdd(timeData.full_time_threads,1);
-
-    atomicAdd(timeData.frameTime,duration);
-    atomicAdd(timeData.frameTimeThreads,1);
-
-  }
-*/
 
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)

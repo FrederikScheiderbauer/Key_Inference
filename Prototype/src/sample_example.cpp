@@ -29,6 +29,7 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>
+#include <fstream>
 
 
 #define VMA_IMPLEMENTATION
@@ -39,6 +40,8 @@
 #include "sample_example.hpp"
 #include "sample_gui.hpp"
 #include "tools.hpp"
+
+#include "sorting_grid.hpp"
 
 #include "nvml_monitor.hpp"
 
@@ -96,6 +99,8 @@ void SampleExample::setup(const VkInstance&               instance,
   //std::random_device dev;
   std::mt19937 rng2(dev());
   rng = rng2;
+
+  createStorageBuffer();
 
 
   buildSortingGrid();
@@ -226,6 +231,55 @@ void SampleExample::resetFrame()
   m_rtxState.frame = -1;
 }
 
+void SampleExample::createStorageBuffer()
+{
+    m_GridSortingKeyBuffer = m_alloc.createBuffer(sizeof(GridCube) * MAXGRIDSIZE *MAXGRIDSIZE *MAXGRIDSIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  NAME_VK(m_GridSortingKeyBuffer.buffer);
+}
+
+void SampleExample::updateStorageBuffer(const VkCommandBuffer& cmdBuf)
+{
+  if(m_busy)
+    return;
+
+  LABEL_SCOPE_VK(cmdBuf);
+
+
+  //upddate best keys data
+
+  for(int i = 0; i < grid_x;i++)
+  {
+    for(int j = 0; j < grid_y;j++)
+    {
+      for(int k = 0; k < grid_z;k++)
+      {
+        //determine index in buffer, densely packed
+        int index = k*(grid_y*grid_x) + j*grid_x + i;
+        
+        //determine best Key seen yet for each gridspace
+        float fastestTime = std::numeric_limits<float>::min();
+        float fastestHash = 0;
+
+        for(TimingObject timing : sortingGrid[k][j][i].observedData)
+        {
+          if(timing.fps > fastestTime)
+          {
+            fastestTime = timing.fps;
+            fastestHash =timing.hashCode;
+          }
+        }
+        GridCube cube;
+        cube.up = fastestHash;
+        bestKeys[index] = cube;
+      }
+    }
+  }
+  vkCmdUpdateBuffer(cmdBuf,m_GridSortingKeyBuffer.buffer,0,sizeof(GridCube[1000]),&bestKeys);
+  //vkCmdUpdateBuffer(cmdBuf, m_sunAndSkyBuffer.buffer, 0, sizeof(SunAndSky), &m_sunAndSky);
+  //vkCmdUpdateBuffer(cmdBuf, m_sortingParametersBuffer.buffer, 0, sizeof(SortingParameters), &(dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod])->m_SERParameters));
+}
+
 //--------------------------------------------------------------------------------------------------
 // Descriptors for the Sun&Sky buffer
 //
@@ -239,6 +293,7 @@ void SampleExample::createDescriptorSetLayout()
   m_bind.addBinding({EnvBindings::eSortParameters, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_MISS_BIT_KHR | flags});
   m_bind.addBinding({EnvBindings::eHdr, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, flags});  // HDR image
   m_bind.addBinding({EnvBindings::eImpSamples, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flags});   // importance sampling
+  m_bind.addBinding({EnvBindings::eGridKeys, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, flags});   // importance sampling
 
 
   m_descPool = m_bind.createPool(m_device, 1);
@@ -250,10 +305,12 @@ void SampleExample::createDescriptorSetLayout()
   VkDescriptorBufferInfo            sunskyDesc{m_sunAndSkyBuffer.buffer, 0, VK_WHOLE_SIZE};
   VkDescriptorBufferInfo            sortParametersDesc{m_sortingParametersBuffer.buffer, 0, VK_WHOLE_SIZE};
   VkDescriptorBufferInfo            accelImpSmpl{m_skydome.m_accelImpSmpl.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo            gridKeysDesc{m_GridSortingKeyBuffer.buffer, 0, VK_WHOLE_SIZE};
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eSunSky, &sunskyDesc));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eHdr, &m_skydome.m_texHdr.descriptor));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eImpSamples, &accelImpSmpl));
   writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eSortParameters, &sortParametersDesc));
+  writes.emplace_back(m_bind.makeWrite(m_descSet, EnvBindings::eGridKeys, &gridKeysDesc));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
@@ -298,6 +355,7 @@ void SampleExample::destroyResources()
   // Resources
   m_alloc.destroy(m_sunAndSkyBuffer);
   m_alloc.destroy(m_sortingParametersBuffer);
+  m_alloc.destroy(m_GridSortingKeyBuffer);
 
   // Descriptors
   vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
@@ -476,15 +534,16 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
   m_rtxState.size = {render_size.width, render_size.height};
 
 
-  m_rtxState.maxSceneExtent = length(m_scene.getScene().m_dimensions.max - m_scene.getScene().m_dimensions.min);
   m_rtxState.SceneMax = m_scene.getScene().m_dimensions.max;
   m_rtxState.SceneMin = m_scene.getScene().m_dimensions.min;
   m_rtxState.gridX = grid_x;
   m_rtxState.gridY = grid_y;
   m_rtxState.gridZ = grid_z;
-  
+  m_rtxState.SceneCenter = m_scene.getScene().m_dimensions.center; 
 
-
+//std::cout << "SceneCenter: " << m_rtxState.SceneCenter.x << " "<<m_rtxState.SceneCenter.y <<" " << m_rtxState.SceneCenter.z << std::endl;
+//std::cout << "SceneMin: " << m_rtxState.SceneMin.x << " "<<m_rtxState.SceneMin.y <<" " << m_rtxState.SceneMin.z << std::endl;
+//std::cout << "SceneMax: " << m_rtxState.SceneMax.x << " "<<m_rtxState.SceneMax.y <<" " << m_rtxState.SceneMax.z << std::endl;
 glm::vec3 distScene = m_rtxState.SceneMax - m_rtxState.SceneMin;
 glm::vec3 cameraPos = CameraManip.getEye();
 glm::vec3 gridSizes = glm::vec3(distScene.x/grid_x,distScene.y/grid_y, distScene.z/grid_z);
@@ -879,6 +938,7 @@ void SampleExample::doCycle()
   bool foundOne = false;
 
   GridSpace* currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
+  currentGrid = &grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   
   for(int i = 0; i < currentGrid->observedData.size(); i++)
   {
@@ -951,5 +1011,70 @@ void SampleExample::buildSortingGrid()
   //newSortingGrid.resize(grid_y,std::vector<GridSpace>(grid_x));
   newSortingGrid.resize(grid_z,std::vector<std::vector<GridSpace> >(grid_y,std::vector<GridSpace>(grid_x)));
   sortingGrid = newSortingGrid;
+  grid.gridSpaces = newSortingGrid;
+  grid.gridDimensions = glm::vec3(grid_x,grid_y,grid_z);
   printf("build new Grid with dimension %d , %d \n",grid_y,grid_x);
+}
+
+#include <ctime>
+void SampleExample::SaveSortingGrid()
+{
+
+  time_t timestamp = time(&timestamp);
+  struct tm * datetime = localtime(&timestamp);
+  //printf("%2d_%2d__%2d_%2d_%2d\n",datetime->tm_mday,datetime->tm_mon,datetime->tm_hour,datetime->tm_min,datetime->tm_sec);
+
+  char buffer [80];
+  strftime(buffer,80,"%d_%m-%H_%M_%S",datetime);
+  //printf(buffer);
+  std::string begin = "C:/Users/Frederik/Key_Inference/Sorting_Grid_Results/";
+  std::string filename = std::string(buffer);
+  std::string end = ".txt";
+  std::string fullFileName =begin + filename + end;
+  std::fstream fs;
+  std::ofstream outstream;
+
+  outstream.open(fullFileName, std::fstream::out | std::fstream::app);
+
+  outstream << "Grid Dimensions(x,y,z): ";
+  outstream << "(" <<grid.gridDimensions.x <<","<<grid.gridDimensions.y<< "," << grid.gridDimensions.z << ")\n";
+  auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+
+  for(int i = 0; i < grid.gridDimensions.x; i++)
+  {
+      for(int j = 0; j < grid.gridDimensions.y; j++)
+    {
+        for(int k = 0; k < grid.gridDimensions.z; k++)
+      {
+        //if grid has no tested Parameters(or very few) then just select no Sorting
+        if(grid.gridSpaces[k][j][i].observedData.empty())
+        {
+          SortingParameters noSorting;
+          noSorting.noSort = 1;
+          int noSortHash = rtx->hashParameters(noSorting);
+          outstream << "(" << i << "," << j << "," << k <<"):" << noSortHash << "\n";
+        } else {
+          //determine best SortingParameters among those tested
+
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : grid.gridSpaces[k][j][i].observedData)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          outstream << "(" << i << "," << j << "," << k <<"):" << fastestParameters << "\n";
+        }
+      }
+    }
+  }
+  outstream.close();
+  
+  printf("saved to file\n");
+  printf("with File name: ");
+  printf(fullFileName.c_str());
+  
 }

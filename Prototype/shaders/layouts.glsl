@@ -48,7 +48,8 @@ layout(set = S_SCENE, binding = eTextures	      )		uniform sampler2D		texturesMa
 layout(set = S_ENV, binding = eSunSky,		scalar)		uniform _SSBuffer		{ SunAndSky _sunAndSky; };
 layout(set = S_ENV, binding = eHdr)						uniform sampler2D		environmentTexture;
 layout(set = S_ENV, binding = eImpSamples,  scalar)		buffer _EnvAccel		{ EnvAccel envSamplingData[]; };
-layout(set = S_ENV, binding = eSortParameters,		scalar)		uniform _SERBuffer		{ SortingParameters _sortingParameters; };
+layout(set = S_ENV, binding = eSortParameters, scalar)	uniform _SERBuffer		{ SortingParameters _sortingParameters; };
+layout(set = S_ENV, binding = eGridKeys,scalar)		    buffer _GridKeys		 { GridCube gridKeys[]; };
 
 layout(buffer_reference, scalar) buffer Vertices { VertexAttributes v[]; };
 layout(buffer_reference, scalar) buffer Indices	 { uvec3 i[];            };

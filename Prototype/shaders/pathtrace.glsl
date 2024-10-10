@@ -193,6 +193,126 @@ void shadingEnd(uint64_t start)
   //prd.shadeTiming += shadingDuration;
 }
 
+
+
+bool BBoxIntersect(const vec3 boxMin, const vec3 boxMax, const Ray r, out float t0) {
+  vec3 tbot =  (boxMin - r.origin)/r.direction;
+  vec3 ttop =(boxMax - r.origin)/ r.direction;
+  vec3 tmin = min(ttop, tbot);
+  vec3 tmax = max(ttop, tbot);
+  vec2 t = max(tmin.xx, tmin.yz);
+  t0 = max(t.x, t.y);
+  t = min(tmax.xx, tmax.yz);
+  float t1 = min(t.x, t.y);
+  return t1 > max(t0, 0.0);
+}
+
+bool IntersectPlane(const Ray ray){
+  vec3 planePosition = vec3(0.0);
+  vec3 planeNormal = vec3(0.0,0.0,1.0);
+
+
+  float denom = dot(planeNormal,ray.direction);
+  if (abs(denom) > 0.0001f) // your favorite epsilon
+  {
+    float t = dot(planePosition - ray.origin, planeNormal) / denom;
+    if (t >= 0) return true; // you might want to allow an epsilon here too
+  }
+  return false;
+}
+
+
+bool intersectGridCubes(const Ray ray, const vec3 cubePosition, out float t)
+{
+
+  //onst vec3 SceneCenter =rtxState.SceneMin +  (rtxState.SceneMax - rtxState.SceneMin) / 2.0;
+  const vec3 distScene = rtxState.SceneMax - rtxState.SceneMin;
+
+  const vec3 gridSizes = vec3(distScene.x/rtxState.gridX,distScene.y/rtxState.gridX, distScene.z/rtxState.gridZ);
+  
+  const vec3 boxMin = cubePosition + vec3(rtxState.DisplayCubeSize);
+  const vec3 boxMax = cubePosition +  vec3(-rtxState.DisplayCubeSize);
+  //const vec3 boxMin = SceneCenter + vec3(-1.0);
+  //const vec3 boxMax = SceneCenter + vec3(1.0);
+  bool result = BBoxIntersect(boxMin,boxMax,ray, t);
+  return result;
+  //return false;
+}
+
+bool intersectGrid(const Ray ray)
+{
+
+  const vec3 SceneCenter = rtxState.SceneCenter;
+
+  const vec3 distScene = rtxState.SceneMax - rtxState.SceneMin;
+
+  const vec3 gridSizes = vec3(distScene.x/rtxState.gridX,distScene.y/rtxState.gridX, distScene.z/rtxState.gridZ);
+
+  
+  const vec3 boxMin = rtxState.SceneMin;
+  const vec3 boxMax = rtxState.SceneMax;
+  //const vec3 boxMin = SceneCenter + vec3(-1.0);
+  //const vec3 boxMax = SceneCenter + vec3(1.0);
+  return IntersectPlane(ray);
+  //return false;
+}
+
+
+vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t)
+{
+  vec3 isectPoint = r.origin + r.direction * t;
+  vec3 normalized_isect = isectPoint - CubePosition;
+  float epsilon = 0.0001;
+
+  
+
+  // right Cube side
+  if(normalized_isect.x < rtxState.DisplayCubeSize +epsilon && normalized_isect.x > rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 1;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+  //left cube side
+  if(normalized_isect.x < -rtxState.DisplayCubeSize +epsilon && normalized_isect.x > -rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 8;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+
+    // up Cube side
+  if(normalized_isect.y < rtxState.DisplayCubeSize +epsilon && normalized_isect.y > rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 64;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+
+    // down Cube side
+  if(normalized_isect.y < -rtxState.DisplayCubeSize +epsilon && normalized_isect.y > -rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 128;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+  //front Cube side
+  if(normalized_isect.z < rtxState.DisplayCubeSize +epsilon && normalized_isect.z > rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 2;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+  //back Cube side
+  if(normalized_isect.z < -rtxState.DisplayCubeSize +epsilon && normalized_isect.z > -rtxState.DisplayCubeSize - epsilon)
+  {
+    int hashCode = 256;
+    float color = float(hashCode)/256.0;
+    return vec3(color);
+  }
+  return vec3(0.0);
+}
+
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
 vec3 PathTrace(Ray r)
@@ -206,6 +326,33 @@ vec3 PathTrace(Ray r)
     //prd.depth = depth;
     //ClosestHitParameterized(r,depth);
     ClosestHit(r,depth);
+    if(rtxState.VisualizeSortingGrid)
+    {
+      if(depth == 0)
+      {
+        vec3 sceneExtent = rtxState.SceneMax-rtxState.SceneMin;
+        vec3 Xstep = vec3(1.0,0.0,0.0) * (sceneExtent.x /float(rtxState.gridX));
+        vec3 Ystep = vec3(0.0,1.0,0.0) * (sceneExtent.y /float(rtxState.gridY));
+        vec3 Zstep = vec3(0.0,0.0,1.0) * (sceneExtent.z /float(rtxState.gridZ));
+
+        for(int i = 0; i < rtxState.gridX;i++)
+        {
+          for(int j = 0; j < rtxState.gridY;j++)
+          {
+            for(int k = 0; k < rtxState.gridZ;k++)
+            {
+              vec3 gridSpaceCenter = rtxState.SceneMin + Xstep * (float(i)+0.5) + Ystep * (float(j)+0.5) + Zstep * (float(k)+0.5);
+              float t = 0.0;
+              if(intersectGridCubes(r,gridSpaceCenter, t))
+              {
+                return visualizeSortingKey(gridSpaceCenter,r,t);
+              }
+            }
+          }
+        }
+      }
+    }
+
 
     uint64_t shadingStart = clockRealtimeEXT();
     // Hitting the environment

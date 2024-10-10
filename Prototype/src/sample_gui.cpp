@@ -160,30 +160,7 @@ bool SampleGUI::guiRayTracing()
       vkDeviceWaitIdle(_se->m_device);  // cannot run while changing this
       rtx->useAnyHit(bAnyHit);
       changed = true;
-    }
-    if(GuiH::button("randomize Parameters","new parameters",""))
-    {
-      rtx->m_SERParameters= _se->createSortingParameters();
-      _se->reloadRender();
-
-    }
-    ImGui::Text("Sorting Parameter");
-    ImGui::Text(("NumCoherenceBitsTotal: "+ std::to_string(rtx->m_SERParameters.numCoherenceBitsTotal)).c_str());
-    ImGui::Text(("sortAfterASTraversal: "+ std::to_string(rtx->m_SERParameters.sortAfterASTraversal)).c_str());
-    ImGui::Text(("No Sorting: "+ std::to_string(rtx->m_SERParameters.noSort)).c_str());
-    ImGui::Text(("hitObject: "+ std::to_string(rtx->m_SERParameters.hitObject)).c_str());
-    ImGui::Text(("rayOrigin: "+ std::to_string(rtx->m_SERParameters.rayOrigin)).c_str());
-    ImGui::Text(("rayDirection: "+ std::to_string(rtx->m_SERParameters.rayDirection)).c_str());
-    ImGui::Text(("estimatedEndpoint: "+ std::to_string(rtx->m_SERParameters.estimatedEndpoint)).c_str());
-    ImGui::Text(("realEndpoint: "+ std::to_string(rtx->m_SERParameters.realEndpoint)).c_str());
-    ImGui::Text(("isFinished: "+ std::to_string(rtx->m_SERParameters.isFinished)).c_str());
-
-    if(ImGui::CollapsingHeader("Sorting Parameters"))
-    {
-
-    }
-    
-
+    }   
     if(GuiH::Checkbox("Enable Profiling", "",
                       &bProfiling, nullptr))
     {
@@ -192,7 +169,7 @@ bool SampleGUI::guiRayTracing()
       rtx->enableProfiling(bProfiling);
       changed = true;
     }
-    GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
+
     ImGui::RadioButton("Manual",&manualSorting, 1);
     if(manualSorting > 0)
     {
@@ -302,6 +279,7 @@ bool SampleGUI::guiRayTracing()
     return changed;
   });
 
+  /* DO not need Ray Query here
   if(_se->m_supportRayQuery)
   {
     SampleExample::RndMethod method = _se->m_rndMethod;
@@ -312,6 +290,7 @@ bool SampleGUI::guiRayTracing()
       changed = true;
     }
   }
+  */
   if(GuiH::button("Reload Shaders","",""))
   {
     _se->reloadRender();
@@ -329,13 +308,12 @@ bool SampleGUI::guiSortingGrid()
   bool changed{false};
   auto  Normal = ImGuiH::Control::Flags::Normal;
 
-  if(GuiH::Slider("Grid X", "", &_se->grid_x, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Y", "", &_se->grid_y, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Z", "", &_se->grid_z, nullptr, Normal, 1, 10))
+  if(GuiH::Slider("Grid X", "", &_se->grid_x, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Y", "", &_se->grid_y, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Z", "", &_se->grid_z, nullptr, Normal, 1, _se->MAXGRIDSIZE))
   {
     _se->buildSortingGrid();
+    changed = true;
   }
   ImGui::Text(("Current Grid Position [x,y,z]: ("+  std::to_string(_se->currentGridSpace.x) + "," +  std::to_string(_se->currentGridSpace.y)  + "," +  std::to_string(_se->currentGridSpace.z) + ")").c_str());
-  float currentAdaptiveLearningRate = _se->sortingGrid[_se->currentGridSpace.z][_se->currentGridSpace.y][_se->currentGridSpace.x].adaptiveGridLearningRate;
-  
 
   GuiH::Checkbox("Use Constant Grid Learning Speed","",&_se->useConstantGridLearning);
   if(_se->useConstantGridLearning)
@@ -343,12 +321,64 @@ bool SampleGUI::guiSortingGrid()
     GuiH::Slider("Constant Learning Speed","",&_se->constantGridlearningSpeed,nullptr,Normal,0.01f,1.0f,nullptr);
   } else 
   {
+    float currentAdaptiveLearningRate = _se->grid.gridSpaces[_se->currentGridSpace.z][_se->currentGridSpace.y][_se->currentGridSpace.x].adaptiveGridLearningRate;
+  
     ImGui::Text(("Current Grid Cell learning Rate: "+ std::to_string(currentAdaptiveLearningRate)).c_str());
   }
+  auto rtx = dynamic_cast<RtxPipeline*>(_se->m_pRender[_se->m_rndMethod]);
 
+  if(GuiH::Checkbox("Activate Async Pipeline Creation","",&rtx->useAsyncPipelineCreation))
+  {
+    if(rtx->useAsyncPipelineCreation)
+    {
+      rtx->activateAsyncPipelineCreation();
+    } else {
+      rtx->destroyAsyncPipelineBuffer();
+    }
+  }
   //printf("Current Grid Position [x,y]: (%d , %d)\n", _se->currentGridSpace.x,_se->currentGridSpace.y);
 
+  if(GuiH::button("save SortingGrid to File","save",""))
+  {
+    _se->SaveSortingGrid();
+  }
+  if(GuiH::button("NewAsyncPipeline","useNewPipeline",""))
+  {
+    rtx->setNewPipeline();
+  }
+  
+  if(GuiH::Checkbox("Visualize Sorting method","",&_se->m_rtxState.VisualizeSortingGrid))
+  {
+    changed = true;
+  }
 
+  if(_se->m_rtxState.VisualizeSortingGrid)
+  {
+    if(GuiH::Slider("size of display cubes","",&_se->m_rtxState.DisplayCubeSize,nullptr,Normal,0.1f,2.0f,nullptr))
+    {
+      changed = true;
+    }
+    
+  }
+
+  if(GuiH::button("randomize Parameters","new parameters",""))
+    {
+      rtx->m_SERParameters= _se->createSortingParameters();
+      _se->reloadRender();
+    }
+  //Display current Sorting parameters
+    ImGui::Text("Sorting Parameter");
+    ImGui::Text(("NumCoherenceBitsTotal: "+ std::to_string(rtx->m_SERParameters.numCoherenceBitsTotal)).c_str());
+    ImGui::Text(("sortAfterASTraversal: "+ std::to_string(rtx->m_SERParameters.sortAfterASTraversal)).c_str());
+    ImGui::Text(("No Sorting: "+ std::to_string(rtx->m_SERParameters.noSort)).c_str());
+    ImGui::Text(("hitObject: "+ std::to_string(rtx->m_SERParameters.hitObject)).c_str());
+    ImGui::Text(("rayOrigin: "+ std::to_string(rtx->m_SERParameters.rayOrigin)).c_str());
+    ImGui::Text(("rayDirection: "+ std::to_string(rtx->m_SERParameters.rayDirection)).c_str());
+    ImGui::Text(("estimatedEndpoint: "+ std::to_string(rtx->m_SERParameters.estimatedEndpoint)).c_str());
+    ImGui::Text(("realEndpoint: "+ std::to_string(rtx->m_SERParameters.realEndpoint)).c_str());
+    ImGui::Text(("isFinished: "+ std::to_string(rtx->m_SERParameters.isFinished)).c_str());
+
+  GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
   return changed;
 }
 

@@ -67,6 +67,7 @@ public:
 
   const std::string name() override { return std::string("Rtx"); }
   bool     m_enableProfiling{false};
+  void setNewPipeline();
 
   SortingParameters m_SERParameters{
     32,     //numCoherenceBitsTotal: 0-32 Zero meaning No sorting
@@ -81,10 +82,16 @@ public:
     false,  //whether or not the path is finished after this bounce
   };
 std::vector<VkPipeline> m_cachedRtPipelines;
+  void activateAsyncPipelineCreation();
+  void destroyAsyncPipelineBuffer();
+  bool useAsyncPipelineCreation = false;
+
+  bool visualizeSortingGrid{false};
+  float displayCubeSize{1.0};
 
 void setPipeline(int index);
 private:
-  void createPipeline();
+  void createPipeline(VkPipeline& pipeline, SortingParameters parameters, bool updateSBTWrapper = true, bool storeRTPipelineCreateInfo = false);
   void createPipeline_async();
   void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts,VkPipelineLayout& pipelineLayout);
   void createPipelineLayout_async(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts);
@@ -151,8 +158,30 @@ private:
 
   bool m_busy = false;
   bool requiresNewPipeline = true;
-  bool useAsyncPipelineCreation = false;
+  
 
   std::future<void> asyncPipeline;
+
+  std::vector<VkPipeline> pipelineBuffer;
+  std::vector<VkRayTracingPipelineCreateInfoKHR> pipelineCreateInfoBuffer;
+
+  struct AsyncPipeline
+  {
+    VkPipeline pipeline;
+    VkRayTracingPipelineCreateInfoKHR createInfo;
+    int hashCode;
+  };
+
+  std::vector<AsyncPipeline> asyncPipelineBuffer;
+
+  void fillPipelineBuffer();
+  void buildPipeline();
+  
+  
+
+  VkRayTracingPipelineCreateInfoKHR* asyncPipelineCreateInfo;
+
+  VkRayTracingPipelineCreateInfoKHR m_createInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
+  
 
 };

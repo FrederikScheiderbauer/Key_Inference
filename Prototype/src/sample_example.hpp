@@ -70,8 +70,12 @@ typedef nvvk::ResourceAllocatorDedicated Allocator;
 #include "imgui_internal.h"
 #include "queue.hpp"
 #include "nvvk/stagingmemorymanager_vk.hpp"
+#include "sorting_grid.hpp"
 
 class SampleGUI;
+
+
+
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -147,6 +151,10 @@ public:
   nvvk::Buffer m_sunAndSkyBuffer;
   nvvk::Buffer m_profilingBuffer;
   nvvk::Buffer m_sortingParametersBuffer; //UniformBuffers that contains the parameters chosen by User or the Classificator for SER
+  nvvk::Buffer m_GridSortingKeyBuffer;
+  const int MAXGRIDSIZE = 10;
+
+  GridCube bestKeys[10  * 10*10];
 
   int bestSortMode = eNoSorting;
   int DELAY_FRAMES = 4;
@@ -181,9 +189,28 @@ public:
   void renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK& profiler);
 
   //creates a SortingParameters Struct
-
+  void createStorageBuffer();
+  void updateStorageBuffer(const VkCommandBuffer& cmdBuf);
   SortingParameters createSortingParameters();
-
+/*
+  int   frame;                  // Current frame, start at 0
+  int   maxDepth;               // How deep the path is
+  int   maxSamples;             // How many samples to do per render
+  float fireflyClampThreshold;  // to cut fireflies
+  float hdrMultiplier;          // To brightening the scene
+  int   debugging_mode;         // See DebugMode
+  int   pbrMode;                // 0-Disney, 1-Gltf
+  int   _pad0;                  // vec2 need alignment
+  ivec2 size;                   // rendering size
+  int   minHeatmap;             // Debug mode - heat map
+  int   maxHeatmap;
+  vec3 SceneMax;
+  int gridX;
+  vec3 SceneMin;
+  int gridY;
+  vec3 SceneCenter;
+  int gridZ;
+  */
 
   RtxState m_rtxState{
       0,       // frame;
@@ -196,7 +223,16 @@ public:
       0,       // _pad0;
       {0, 0},  // size;
       0,       // minHeatmap;
-      65000    // maxHeatmap;
+      65000,    // maxHeatmap;
+      {0.0,0.0,0.0}, // Maximum of Scene BoundingBox
+      0,             // Sorting Grid X dimension
+      {0.0,0.0,0.0}, // Minimum of Scene BoundingBox
+      0,             // Sorting Grid Y Dimension 
+      {0.0,0.0,0.0}, // Center of Scene Bounding Box
+      0,             // Sorting Grid Z Dimension
+      1.0,           // Size of the sortingCubes for display
+      0,         // Visualization Mode
+      0              // _pad1
   };
 
   SunAndSky m_sunAndSky{
@@ -252,12 +288,7 @@ public:
 
   bool activateParametertesting = false;
 
-  struct TimingObject
-  {
-    int hashCode;
-    int frames;
-    float fps;
-  };
+
 
   std::vector<TimingObject> inferenceMeasurements;
 
@@ -265,14 +296,11 @@ float epsilon = 0.1f;
 float constantGridlearningSpeed = 0.2f;
 bool useConstantGridLearning = true;
 
-struct GridSpace
-{
-  std::vector<TimingObject> observedData;
-  float adaptiveGridLearningRate = 1.0f;
-};
 
 
+Grid grid;
 void buildSortingGrid();
+
 int grid_x = 2;
 int grid_y = 2;
 int grid_z = 2;
@@ -280,6 +308,10 @@ int grid_z = 2;
 glm::ivec3 currentGridSpace;
 
 std::vector<std::vector<std::vector<GridSpace>>> sortingGrid;
+
+
+void SaveSortingGrid();
+
 
 
 bool waitingOnPipeline = false;
