@@ -346,7 +346,7 @@ bool SampleGUI::guiSortingGrid()
   {
     rtx->setNewPipeline();
   }
-  
+  ImGui::Text("%d",_se->currentLookDirection);
   if(GuiH::Checkbox("Visualize Sorting method","",&_se->m_rtxState.VisualizeSortingGrid))
   {
     changed = true;

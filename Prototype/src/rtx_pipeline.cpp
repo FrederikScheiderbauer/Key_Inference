@@ -81,6 +81,9 @@ void RtxPipeline::setup(const VkDevice& device, const VkPhysicalDevice& physical
   m_sbtWrapper.setup(device, familyIndex, allocator, m_rtProperties);
   m_sbtWrapper_async.setup(device, familyIndex, allocator, m_rtProperties);
 
+  wrappers[0].setup(device, familyIndex, allocator, m_rtProperties);
+  wrappers[1].setup(device, familyIndex, allocator, m_rtProperties);
+
   //std::thread thread1(&fillPipelineBuffer);
   
   /*
@@ -108,12 +111,21 @@ void RtxPipeline::setup(const VkDevice& device, const VkPhysicalDevice& physical
 
 void RtxPipeline::destroy()
 {
+
+  destroyAsyncPipelineBuffer();
   m_sbtWrapper.destroy();
 
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
-  vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
-
+  
   m_sbtWrapper_async.destroy();
+
+  for(int i = 0; i < NUM_PIPELINES_IN_BUFFER;i++)
+  { 
+    vkDestroyPipeline(m_device,pipelines[i],nullptr);
+    wrappers[i].destroy();
+  }
+  vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
+  
   vkDestroyPipeline(m_device, m_rtPipeline_async, nullptr);
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout_async, nullptr);
   vkDestroyPipelineCache(m_device,m_PipelineCache,nullptr);
@@ -121,6 +133,10 @@ void RtxPipeline::destroy()
 
   m_rtPipelineLayout = VkPipelineLayout();
   m_rtPipeline       = VkPipeline();
+  for(int i = 0; i < NUM_PIPELINES_IN_BUFFER;i++)
+  { 
+    pipelines[i] = VkPipeline();
+  }
   requiresNewPipeline = true;
   m_rtPipelineLayout_async = VkPipelineLayout();
   m_rtPipeline_async       = VkPipeline();
@@ -144,8 +160,12 @@ void RtxPipeline::create(const VkExtent2D& size, const std::vector<VkDescriptorS
     createPipelineLayout(rtDescSetLayouts,m_rtPipelineLayout);
 
     //cleanup old
-
-    createPipeline(m_rtPipeline,m_SERParameters, true, false);
+    //vkDeviceWaitIdle(m_device);
+    //vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+    //m_sbtWrapper_async.destroy();
+    //createPipeline(pipelines[0],m_SERParameters,0,false);
+    createPipeline(pipelines[activePipeline],m_SERParameters,activePipeline,false);
+    //m_sbtWrapper_async.create(m_rtPipeline, m_createInfo);
 
     
     
@@ -178,7 +198,7 @@ void RtxPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout>&
 //--------------------------------------------------------------------------------------------------
 // Pipeline for the ray tracer: all shaders, raygen, chit, miss
 //
-void RtxPipeline::createPipeline(VkPipeline& pipeline, SortingParameters parameters, bool updateSBTWrapper, bool storeRTPipelineCreateInfo)
+void RtxPipeline::createPipeline(VkPipeline& pipeline, SortingParameters parameters, int wrapperID, bool asyncCall)
 {
 
   enum StageIndices
@@ -190,10 +210,15 @@ void RtxPipeline::createPipeline(VkPipeline& pipeline, SortingParameters paramet
     eAnyHit,
     eShaderGroupCount
   };
-  if(updateSBTWrapper)
+  if(!asyncCall)
   {
     vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+    vkDestroyPipeline(m_device, pipelines[wrapperID], nullptr);
     m_sbtWrapper.destroy();
+    wrappers[wrapperID].destroy();
+  }
+  else {
+    m_sbtWrapper_async.destroy();
   }
 
   // All stages
@@ -335,7 +360,8 @@ void RtxPipeline::createPipeline(VkPipeline& pipeline, SortingParameters paramet
     result = vkCreateDeferredOperationKHR(m_device, nullptr, &deferredOp);
     assert(result == VK_SUCCESS);
   }
-  vkCreateRayTracingPipelinesKHR(m_device, deferredOp,m_PipelineCache, 1, &m_createInfo, nullptr, &pipeline);
+  //vkCreateRayTracingPipelinesKHR(m_device, deferredOp,m_PipelineCache, 1, &m_createInfo, nullptr, &pipeline);
+  vkCreateRayTracingPipelinesKHR(m_device, deferredOp,m_PipelineCache, 1, &m_createInfo, nullptr, &pipelines[wrapperID]);
 
   if(useDeferred)
   {
@@ -365,18 +391,18 @@ void RtxPipeline::createPipeline(VkPipeline& pipeline, SortingParameters paramet
   }
 
 
-  if(updateSBTWrapper)
+  if(!asyncCall)
   {
     // --- SBT ---
     asyncPipelineCreateInfo = &rayPipelineInfo;
     m_sbtWrapper.create(pipeline, m_createInfo);
-    
-
-  }
-  if(storeRTPipelineCreateInfo)
-  {
+    wrappers[wrapperID].create(pipeline,m_createInfo);
+  }else {
+    //m_sbtWrapper_async.destroy();
+    m_sbtWrapper_async.create(pipeline, m_createInfo);
     asyncPipelineCreateInfo = &rayPipelineInfo;
   }
+
 
 
 
@@ -398,8 +424,8 @@ void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvv
   if(asyncPipelineBuffer.size() > 5)
   {
     vkDeviceWaitIdle(m_device);
-    m_sbtWrapper.destroy();
-    m_sbtWrapper.create(m_rtPipeline);
+    m_sbtWrapper_async.destroy();
+    m_sbtWrapper_async.create(m_rtPipeline,m_createInfo);
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
   }
   else {
@@ -408,7 +434,8 @@ void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvv
   */
 
   //vkDeviceWaitIdle(m_device);
-  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+  //vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelines[activePipeline]);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
                           static_cast<uint32_t>(descSets.size()), descSets.data(), 0, nullptr);
   vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
@@ -416,7 +443,7 @@ void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvv
                      0, sizeof(RtxState), &m_state);
 
 
-  auto& regions = m_sbtWrapper.getRegions();
+  auto& regions = wrappers[0].getRegions();
   
   vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
 }
@@ -427,7 +454,7 @@ void RtxPipeline::run(const VkCommandBuffer& cmdBuf, const VkExtent2D& size, nvv
 void RtxPipeline::useAnyHit(bool enable)
 {
   m_enableAnyhit = enable;
-  createPipeline(m_rtPipeline,m_SERParameters);
+  createPipeline(m_rtPipeline,m_SERParameters,0,false);
 }
 
 
@@ -482,13 +509,13 @@ VkShaderModule RtxPipeline::CompileAndCreateShaderModule(std::string filename, s
 void RtxPipeline::setSortingMode(int index)
 {
   m_sortingMode = index;
-  createPipeline(m_rtPipeline,m_SERParameters);
+  createPipeline(m_rtPipeline,m_SERParameters,0,false);
 }
 
 void RtxPipeline::enableProfiling(bool enable)
 {
   m_enableProfiling = enable;
-  createPipeline(m_rtPipeline,m_SERParameters);
+  createPipeline(m_rtPipeline,m_SERParameters,0,false);
 }
 
 
@@ -587,13 +614,16 @@ void RtxPipeline::fillPipelineBuffer()
     AsyncPipeline newAsyncPipeline;
     //VkPipeline newPipeline;
     SortingParameters parameters =  createSortingParameters1();
-    createPipeline(newAsyncPipeline.pipeline,parameters, false, true);
+    createPipeline(newAsyncPipeline.pipeline,parameters,1, true);
     //pipelineBuffer.emplace_back(newPipeline);
-    newAsyncPipeline.createInfo = *asyncPipelineCreateInfo;
+    newAsyncPipeline.createInfo = m_createInfo;
     newAsyncPipeline.hashCode = hashParameters(parameters);
     asyncPipelineBuffer.emplace_back(newAsyncPipeline);
     printf("build pipeline in buffer with Parameterset:%d\n", hashParameters(parameters));
     timer.print();
+
+    //m_sbtWrapper_async.destroy();
+    //m_sbtWrapper_async.create(newAsyncPipeline.pipeline,newAsyncPipeline.createInfo);
   }
 }
 

@@ -546,6 +546,53 @@ void SampleExample::renderScene(const VkCommandBuffer& cmdBuf, nvvk::ProfilerVK&
 //std::cout << "SceneMax: " << m_rtxState.SceneMax.x << " "<<m_rtxState.SceneMax.y <<" " << m_rtxState.SceneMax.z << std::endl;
 glm::vec3 distScene = m_rtxState.SceneMax - m_rtxState.SceneMin;
 glm::vec3 cameraPos = CameraManip.getEye();
+glm::vec3 cameraInterest = glm::normalize(CameraManip.getCenter() - cameraPos);
+glm::vec3 up{0.0,1.0,0.0};
+glm::vec3 down{0.0,-1.0,0.0};
+glm::vec3 right{1.0,0.0,0.0};
+glm::vec3 left{-1.0,0.0,0.0};
+glm::vec3 front{0.0,0.0,1.0};
+glm::vec3 back{0.0,0.0,-1.0};
+float closestMatch = 0.0;
+CubeSide closestmatchedSide;
+float angle = glm::dot(cameraInterest,up);
+if(angle> closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeUp;
+}
+angle = glm::dot(cameraInterest,down);
+if(angle > closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeDown;
+}
+angle = glm::dot(cameraInterest,left);
+if(angle > closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeLeft;
+}
+angle = glm::dot(cameraInterest,right);
+if(angle > closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeRight;
+}
+angle = glm::dot(cameraInterest,front);
+if(angle > closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeFront;
+}
+angle = glm::dot(cameraInterest,back);
+if(angle > closestMatch)
+{
+  closestMatch = angle;
+  closestmatchedSide = CubeBack;
+}
+currentLookDirection = closestmatchedSide;
+
 glm::vec3 gridSizes = glm::vec3(distScene.x/grid_x,distScene.y/grid_y, distScene.z/grid_z);
 
 float epsilon = 0.001f; // to ensure correct grid placement

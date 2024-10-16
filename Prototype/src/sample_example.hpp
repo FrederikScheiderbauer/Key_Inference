@@ -148,13 +148,23 @@ public:
   std::array<Renderer*, eNone> m_pRender{nullptr, nullptr};
   RndMethod                    m_rndMethod{eNone};
 
+  enum CubeSide
+{
+  CubeUp,
+  CubeDown,
+  CubeLeft,
+  CubeRight,
+  CubeFront,
+  CubeBack
+};
+  CubeSide currentLookDirection;
   nvvk::Buffer m_sunAndSkyBuffer;
   nvvk::Buffer m_profilingBuffer;
   nvvk::Buffer m_sortingParametersBuffer; //UniformBuffers that contains the parameters chosen by User or the Classificator for SER
   nvvk::Buffer m_GridSortingKeyBuffer;
   const int MAXGRIDSIZE = 10;
 
-  GridCube bestKeys[10  * 10*10];
+  GridCube bestKeys[10*10*10];
 
   int bestSortMode = eNoSorting;
   int DELAY_FRAMES = 4;
@@ -306,6 +316,9 @@ int grid_y = 2;
 int grid_z = 2;
 
 glm::ivec3 currentGridSpace;
+
+
+
 
 std::vector<std::vector<std::vector<GridSpace>>> sortingGrid;
 

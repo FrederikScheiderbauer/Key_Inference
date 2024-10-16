@@ -35,7 +35,7 @@
 
 using nvvk::SBTWrapper;
 
-
+const int NUM_PIPELINES_IN_BUFFER = 2;
 /*
 
 Creating the RtCore renderer 
@@ -91,7 +91,7 @@ std::vector<VkPipeline> m_cachedRtPipelines;
 
 void setPipeline(int index);
 private:
-  void createPipeline(VkPipeline& pipeline, SortingParameters parameters, bool updateSBTWrapper = true, bool storeRTPipelineCreateInfo = false);
+  void createPipeline(VkPipeline& pipeline, SortingParameters parameters, int wrapperID, bool asyncCall = false);
   void createPipeline_async();
   void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts,VkPipelineLayout& pipelineLayout);
   void createPipelineLayout_async(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts);
@@ -121,9 +121,6 @@ private:
   VkPipelineLayout                                m_rtPipelineLayout_async{VK_NULL_HANDLE};
   VkPipeline                                      m_rtPipeline_async{VK_NULL_HANDLE};
   SBTWrapper                                      m_sbtWrapper_async;
-
-
-  int activePipeline;
 
   struct ShaderObject
   {
@@ -183,5 +180,10 @@ private:
 
   VkRayTracingPipelineCreateInfoKHR m_createInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
   
+  
+  VkPipeline pipelines[NUM_PIPELINES_IN_BUFFER] = {{VK_NULL_HANDLE},{VK_NULL_HANDLE}};
+  SBTWrapper wrappers[NUM_PIPELINES_IN_BUFFER];
+  int activePipeline = 0;
 
-};
+
+  };
