@@ -333,7 +333,7 @@ bool SampleGUI::guiSortingGrid()
     {
       rtx->activateAsyncPipelineCreation();
     } else {
-      rtx->destroyAsyncPipelineBuffer();
+      //rtx->destroyAsyncPipelineBuffer();
     }
   }
   //printf("Current Grid Position [x,y]: (%d , %d)\n", _se->currentGridSpace.x,_se->currentGridSpace.y);
@@ -344,15 +344,24 @@ bool SampleGUI::guiSortingGrid()
   }
   if(GuiH::button("NewAsyncPipeline","useNewPipeline",""))
   {
+    vkDeviceWaitIdle(_se->m_device);
     rtx->setNewPipeline();
+    //rtx->setNewPipeline_WithoutDestroying();
   }
   ImGui::Text("%d",_se->currentLookDirection);
-  if(GuiH::Checkbox("Visualize Sorting method","",&_se->m_rtxState.VisualizeSortingGrid))
+  if(GuiH::Checkbox("Visualize Sorting method","",&VisualizeSortingGrid))
   {
+    if(VisualizeSortingGrid)
+    {
+      _se->m_rtxState.VisualizeSortingGrid = 1;
+    } else {
+      _se->m_rtxState.VisualizeSortingGrid = 0;
+    }
+    
     changed = true;
   }
 
-  if(_se->m_rtxState.VisualizeSortingGrid)
+  if(VisualizeSortingGrid)
   {
     if(GuiH::Slider("size of display cubes","",&_se->m_rtxState.DisplayCubeSize,nullptr,Normal,0.1f,2.0f,nullptr))
     {

@@ -230,7 +230,7 @@ int main(int argc, char** argv)
 
     sample.renderGui(profiler);          // UI
     sample.updateUniformBuffer(cmdBuf);  // Updating UBOs
-    //sample.updateStorageBuffer(cmdBuf);
+    sample.updateStorageBuffer(cmdBuf);
 
     // Rendering Scene (ray tracing)
     sample.renderScene(cmdBuf, profiler);

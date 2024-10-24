@@ -223,7 +223,7 @@ struct RtxState
   vec3 SceneCenter;
   int gridZ;
   float DisplayCubeSize;
-  bool VisualizeSortingGrid;      // 0-NoViz,1-Display Cubes
+  int VisualizeSortingGrid;      // 0-NoViz,1-Display Cubes
   int   _pad1; 
 };
 

@@ -73,4 +73,7 @@ private:
   float constantGridlearningSpeed = 0.2f;
 
 
+  bool VisualizeSortingGrid = false;
+
+
 };

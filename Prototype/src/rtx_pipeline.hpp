@@ -36,6 +36,13 @@
 using nvvk::SBTWrapper;
 
 const int NUM_PIPELINES_IN_BUFFER = 2;
+
+  struct PipelineStorage
+  {
+    VkPipeline pipeline;
+    SBTWrapper sbt;
+    SortingParameters parameters;
+  };
 /*
 
 Creating the RtCore renderer 
@@ -68,6 +75,8 @@ public:
   const std::string name() override { return std::string("Rtx"); }
   bool     m_enableProfiling{false};
   void setNewPipeline();
+  void setNewPipeline(PipelineStorage newPipelineElement);
+  std::vector<PipelineStorage> PrebuildPipelineBuffer;
 
   SortingParameters m_SERParameters{
     32,     //numCoherenceBitsTotal: 0-32 Zero meaning No sorting
@@ -91,7 +100,10 @@ std::vector<VkPipeline> m_cachedRtPipelines;
 
 void setPipeline(int index);
 private:
-  void createPipeline(VkPipeline& pipeline, SortingParameters parameters, int wrapperID, bool asyncCall = false);
+
+
+
+  PipelineStorage createPipeline(SortingParameters parameters);
   void createPipeline_async();
   void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts,VkPipelineLayout& pipelineLayout);
   void createPipelineLayout_async(const std::vector<VkDescriptorSetLayout>& rtDescSetLayouts);
@@ -112,8 +124,8 @@ private:
   VkDevice                 m_device;
   uint32_t                 m_queueIndex{0};
 
-
-  VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{};
+  VkPhysicalDeviceProperties2                     properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
   VkPipelineLayout                                m_rtPipelineLayout{VK_NULL_HANDLE};
   VkPipeline                                      m_rtPipeline{VK_NULL_HANDLE};
   SBTWrapper                                      m_sbtWrapper;
@@ -186,4 +198,16 @@ private:
   int activePipeline = 0;
 
 
+
+
+  //std::vector<VkPipeline> storedPipelines;
+  //std::vector<SBTWrapper> storedSBTs;
+  std::vector<PipelineStorage> storage;
+
+
+  
+
+
+  PipelineStorage activeElement;
+  
   };

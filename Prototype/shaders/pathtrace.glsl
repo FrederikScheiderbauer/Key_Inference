@@ -258,25 +258,25 @@ bool intersectGrid(const Ray ray)
 }
 
 
-vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t)
+vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t, ivec3 gridSpace)
 {
   vec3 isectPoint = r.origin + r.direction * t;
   vec3 normalized_isect = isectPoint - CubePosition;
   float epsilon = 0.0001;
 
-  
+  int index = gridSpace.z*(rtxState.gridY*rtxState.gridX) + gridSpace.y*rtxState.gridX + gridSpace.x;
 
   // right Cube side
   if(normalized_isect.x < rtxState.DisplayCubeSize +epsilon && normalized_isect.x > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 1;
+    int hashCode = gridKeys[index].right;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
   //left cube side
   if(normalized_isect.x < -rtxState.DisplayCubeSize +epsilon && normalized_isect.x > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 8;
+    int hashCode = gridKeys[index].left;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
@@ -284,7 +284,7 @@ vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t)
     // up Cube side
   if(normalized_isect.y < rtxState.DisplayCubeSize +epsilon && normalized_isect.y > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 64;
+    int hashCode = gridKeys[index].up;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
@@ -292,25 +292,25 @@ vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t)
     // down Cube side
   if(normalized_isect.y < -rtxState.DisplayCubeSize +epsilon && normalized_isect.y > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 128;
+    int hashCode = gridKeys[index].down;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
   //front Cube side
   if(normalized_isect.z < rtxState.DisplayCubeSize +epsilon && normalized_isect.z > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 2;
+    int hashCode = gridKeys[index].front;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
   //back Cube side
   if(normalized_isect.z < -rtxState.DisplayCubeSize +epsilon && normalized_isect.z > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = 256;
+    int hashCode = gridKeys[index].back;
     float color = float(hashCode)/256.0;
     return vec3(color);
   }
-  return vec3(0.0);
+  return vec3(1.0);
 }
 
 //-----------------------------------------------------------------------
@@ -326,7 +326,7 @@ vec3 PathTrace(Ray r)
     //prd.depth = depth;
     //ClosestHitParameterized(r,depth);
     ClosestHit(r,depth);
-    if(rtxState.VisualizeSortingGrid)
+    if(rtxState.VisualizeSortingGrid > 0)
     {
       if(depth == 0)
       {
@@ -345,7 +345,7 @@ vec3 PathTrace(Ray r)
               float t = 0.0;
               if(intersectGridCubes(r,gridSpaceCenter, t))
               {
-                return visualizeSortingKey(gridSpaceCenter,r,t);
+                return visualizeSortingKey(gridSpaceCenter,r,t, ivec3(i,j,k));
               }
             }
           }

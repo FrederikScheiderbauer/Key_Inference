@@ -131,6 +131,7 @@ public:
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void prepareProfilingData(VkCommandBuffer cmdBuf);
 
+  void beginSortingGridTraining();
   void doCycle();
 
   Scene              m_scene;
@@ -291,7 +292,7 @@ public:
   std::shared_ptr<SampleGUI> m_gui;
 
 
-  const float timePerCycle = 1000.0;
+  const float timePerCycle = 150.0;
 
   float timeRemaining = timePerCycle;
   uint framesThisCycle = 0;
@@ -307,7 +308,7 @@ float constantGridlearningSpeed = 0.2f;
 bool useConstantGridLearning = true;
 
 
-
+bool GridWhite = false;
 Grid grid;
 void buildSortingGrid();
 

@@ -66,7 +66,7 @@ layout(constant_id = 8) const bool AFTERASTRAVERSAL = false;
 layout(constant_id = 9) const bool ISFINISHED = false;
 
 
-layout(constant_id = 10) const bool VISUALIZE_CUBES = true;
+layout(constant_id = 10) const bool VISUALIZE_CUBES = false;
 layout(constant_id = 11) const bool VISUALIZE_GRID = false;
 
 

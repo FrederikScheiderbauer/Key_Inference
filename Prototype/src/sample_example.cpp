@@ -977,6 +977,7 @@ void SampleExample::doCycle()
 
  if(timeRemaining < 0.0)
  {
+  GridWhite = GridWhite & 1;
   printf(std::to_string(framesThisCycle).c_str());
   printf("\n");
   timeRemaining = timePerCycle;
@@ -987,12 +988,15 @@ void SampleExample::doCycle()
   GridSpace* currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   currentGrid = &grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   
+
   for(int i = 0; i < currentGrid->observedData.size(); i++)
   {
     if(hashCode == currentGrid->observedData[i].hashCode)
     {
-      currentGrid->observedData[i].frames = framesThisCycle;
-      currentGrid->observedData[i].fps = framesThisCycle*1000/timePerCycle;
+      currentGrid->observedData[i].frames += framesThisCycle;
+      currentGrid->observedData[i].totalCycles += 1;
+      currentGrid->observedData[i].fps = currentGrid->observedData[i].frames*1000/(timePerCycle * currentGrid->observedData[i].totalCycles);
+      
       foundOne = true;
       break;
     }
@@ -1003,6 +1007,7 @@ void SampleExample::doCycle()
     newTiming.hashCode = hashCode;
     newTiming.frames = framesThisCycle;
     newTiming.fps = framesThisCycle*1000/timePerCycle;
+    newTiming.totalCycles = 1;
     currentGrid->observedData.emplace_back(newTiming);
   }
 
@@ -1013,18 +1018,23 @@ void SampleExample::doCycle()
   float epsilon = useConstantGridLearning ? constantGridlearningSpeed : currentGrid->adaptiveGridLearningRate;
   if(r < epsilon)
   {
-    rtx->m_SERParameters= createSortingParameters();
-    reloadRender();
-    printf("explore\n");
-    if(!useConstantGridLearning)
+    //rtx->m_SERParameters= createSortingParameters();
+    //reloadRender();
+    if(!rtx->PrebuildPipelineBuffer.empty())
     {
-      currentGrid->adaptiveGridLearningRate -= currentGrid->adaptiveGridLearningRate/10.0f;
-      currentGrid->adaptiveGridLearningRate = glm::max(currentGrid->adaptiveGridLearningRate,0.1f);
+      vkDeviceWaitIdle(m_device);
+      rtx->setNewPipeline();
+      printf("explore\n");
+      if(!useConstantGridLearning)
+      {
+        currentGrid->adaptiveGridLearningRate -= currentGrid->adaptiveGridLearningRate/10.0f;
+        currentGrid->adaptiveGridLearningRate = glm::max(currentGrid->adaptiveGridLearningRate,0.1f);
+      }
     }
   }
   //otherwise exploit
   else {
-    
+    /*
     float fastestTime = 0.0;
     int fastestHash = 0;
     for(TimingObject timing: currentGrid->observedData)
@@ -1045,7 +1055,7 @@ void SampleExample::doCycle()
       reloadRender();
       printf("chose faster one\n");
     }
-    
+    */
   }
  }
 
@@ -1124,4 +1134,13 @@ void SampleExample::SaveSortingGrid()
   printf("with File name: ");
   printf(fullFileName.c_str());
   
+}
+
+
+void SampleExample::beginSortingGridTraining()
+{
+
+
+
+  printf("Training done\n");
 }

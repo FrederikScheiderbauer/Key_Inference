@@ -9,6 +9,7 @@
     int hashCode;
     int frames;
     float fps;
+    int totalCycles;
   };
 
   struct TimingCube
