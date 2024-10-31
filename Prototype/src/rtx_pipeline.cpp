@@ -566,11 +566,13 @@ void RtxPipeline::fillPipelineBuffer()
   MilliTimer timer;
   LOGI("Create RtxPipeline:");
   //create the new parameters
+  //SortingParameters newSortingParameters = morphSortingParameters(mostRecentParameters);
   SortingParameters newSortingParameters = createSortingParameters1();
+  mostRecentParameters = newSortingParameters;
   //create new pipeline
   PipelineStorage newElement = createPipeline(newSortingParameters);
   newElement.parameters = newSortingParameters;
-  PrebuildPipelineBuffer.emplace_back(newElement);
+  PrebuildPipelineBuffer.emplace_back(newElement);    
   timer.print();
  }
 
@@ -586,6 +588,14 @@ void RtxPipeline::setNewPipeline()
   m_SERParameters = activeElement.parameters;
   PrebuildPipelineBuffer.erase(PrebuildPipelineBuffer.begin());
 
+}
+
+
+void RtxPipeline::setNewPipeline(PipelineStorage newPipelineElement)
+{
+  activeElement = newPipelineElement;
+  m_SERParameters = activeElement.parameters;
+  //PrebuildPipelineBuffer.erase(PrebuildPipelineBuffer.begin());
 }
 void RtxPipeline::activateAsyncPipelineCreation()
 {

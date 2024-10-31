@@ -237,7 +237,90 @@ void SampleExample::createStorageBuffer()
                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   NAME_VK(m_GridSortingKeyBuffer.buffer);
 }
+GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
+{
+  GridCube cube;
 
+  float fastestTime = std::numeric_limits<float>::min();
+  int fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsUP = getCubeSideElements(CubeSide::CubeUp,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsUP)
+    {
+    if(timing.fps > fastestTime)
+      {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+      }
+  }
+  cube.up = fastestHash;
+
+  fastestTime = std::numeric_limits<float>::min();
+  fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsDOWN = getCubeSideElements(CubeSide::CubeDown,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsDOWN)
+  {
+    if(timing.fps > fastestTime)
+    {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+    }
+  }
+  cube.down = fastestHash;
+
+  fastestTime = std::numeric_limits<float>::min();
+  fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsRight = getCubeSideElements(CubeSide::CubeRight,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsRight)
+  {
+    if(timing.fps > fastestTime)
+    {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+    }
+  }
+  cube.right = fastestHash;
+
+  fastestTime = std::numeric_limits<float>::min();
+  fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsLeft = getCubeSideElements(CubeSide::CubeLeft,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsLeft)
+  {
+    if(timing.fps > fastestTime)
+    {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+    }
+  }
+  cube.left = fastestHash;
+
+  fastestTime = std::numeric_limits<float>::min();
+  fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsFront = getCubeSideElements(CubeSide::CubeFront,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsFront)
+  {
+    if(timing.fps > fastestTime)
+    {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+    }
+  }
+  cube.front = fastestHash;
+
+  fastestTime = std::numeric_limits<float>::min();
+  fastestHash = 0;
+  std::vector<TimingObject>* cubeSideTimingsback = getCubeSideElements(CubeSide::CubeBack,currentGrid);
+  for(TimingObject timing : *cubeSideTimingsback)
+  {
+    if(timing.fps > fastestTime)
+    {
+      fastestTime = timing.fps;
+      fastestHash =timing.hashCode;
+    }
+  }
+  cube.back = fastestHash;
+
+  return cube;
+}
 void SampleExample::updateStorageBuffer(const VkCommandBuffer& cmdBuf)
 {
   if(m_busy)
@@ -247,7 +330,8 @@ void SampleExample::updateStorageBuffer(const VkCommandBuffer& cmdBuf)
 
 
   //upddate best keys data
-
+if(m_gui->VisualizeSortingGrid)
+{
   for(int i = 0; i < grid_x;i++)
   {
     for(int j = 0; j < grid_y;j++)
@@ -257,27 +341,19 @@ void SampleExample::updateStorageBuffer(const VkCommandBuffer& cmdBuf)
         //determine index in buffer, densely packed
         int index = k*(grid_y*grid_x) + j*grid_x + i;
         
-        //determine best Key seen yet for each gridspace
-        float fastestTime = std::numeric_limits<float>::min();
-        float fastestHash = 0;
+        //determine best Key seen yet for each gridspace and viewing direction
 
-        for(TimingObject timing : sortingGrid[k][j][i].observedData)
-        {
-          if(timing.fps > fastestTime)
-          {
-            fastestTime = timing.fps;
-            fastestHash =timing.hashCode;
-          }
-        }
-        GridCube cube;
-        cube.up = fastestHash;
-        bestKeys[index] = cube;
+
+
+        bestKeys[index] = determineBestTimesCube(&grid.gridSpaces[k][j][i]);
       }
     }
   }
+
+  
   vkCmdUpdateBuffer(cmdBuf,m_GridSortingKeyBuffer.buffer,0,sizeof(GridCube[1000]),&bestKeys);
-  //vkCmdUpdateBuffer(cmdBuf, m_sunAndSkyBuffer.buffer, 0, sizeof(SunAndSky), &m_sunAndSky);
-  //vkCmdUpdateBuffer(cmdBuf, m_sortingParametersBuffer.buffer, 0, sizeof(SortingParameters), &(dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod])->m_SERParameters));
+}
+
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -613,6 +689,17 @@ glm::vec3 clippedCameraPos = glm::vec3(glm::min(glm::max(cameraPos.x,m_rtxState.
 
   currentGridSpace = glm::vec3(gridSpaceX,gridSpaceY,gridSpaceZ);
 }
+auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+if(useBestParameters)
+{
+  PipelineStorage bestPipeline = grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x].bestPipeline;
+  if(bestPipeline.pipeline !=VK_NULL_HANDLE)
+  {
+    vkDeviceWaitIdle(m_device);
+    rtx->setNewPipeline(bestPipeline);
+  }
+  
+}
   // State is the push constant structure
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
@@ -683,7 +770,7 @@ START_ENUM(SortingMode)
   eNumSortModes = 10 //  Number of actual Sorting Modes
 END_ENUM();
 */
-auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
+
 int sortMode = *(rtx->getSortingMode());
 
 
@@ -984,11 +1071,48 @@ void SampleExample::doCycle()
   auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
   int hashCode = rtx->hashParameters(rtx->m_SERParameters);
   bool foundOne = false;
+  bool foundOne2 = false;
 
-  GridSpace* currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
-  currentGrid = &grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
+   //currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
+  GridSpace* currentGrid = &grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   
+  std::vector<TimingObject>* observedData = getCubeSideElements(currentLookDirection,currentGrid);
 
+  for(int i = 0; i < observedData->size(); i++)
+  {
+    TimingObject* object = &observedData->at(i);
+    if(hashCode == object->hashCode)
+    {
+      object->frames += framesThisCycle;
+      object->totalCycles += 1;
+      object->fps = object->frames*1000/(timePerCycle * object->totalCycles);
+      
+      if(object->fps > currentGrid->BestPipelineFPS)
+      {
+        currentGrid->BestPipelineFPS = object->fps;
+        currentGrid->bestPipeline = rtx->activeElement;
+      }
+      foundOne2 = true;
+      break;
+    }
+  }
+  if(!foundOne2)
+  {
+    TimingObject newTiming;
+    newTiming.hashCode = hashCode;
+    newTiming.frames = framesThisCycle;
+    newTiming.fps = framesThisCycle*1000/timePerCycle;
+    newTiming.totalCycles = 1;
+    observedData->emplace_back(newTiming);
+
+    if(newTiming.fps > currentGrid->BestPipelineFPS)
+      {
+        currentGrid->BestPipelineFPS = newTiming.fps;
+        currentGrid->bestPipeline = rtx->activeElement;
+      }
+  }
+
+/*
   for(int i = 0; i < currentGrid->observedData.size(); i++)
   {
     if(hashCode == currentGrid->observedData[i].hashCode)
@@ -1010,7 +1134,7 @@ void SampleExample::doCycle()
     newTiming.totalCycles = 1;
     currentGrid->observedData.emplace_back(newTiming);
   }
-
+*/
   framesThisCycle = 0;
   float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
   
@@ -1034,6 +1158,13 @@ void SampleExample::doCycle()
   }
   //otherwise exploit
   else {
+    printf("exploit\n");
+    if(currentGrid->bestPipeline.pipeline != VK_NULL_HANDLE)
+    {
+      rtx->setNewPipeline(currentGrid->bestPipeline);
+      printf("chose faster one\n");
+    }
+    
     /*
     float fastestTime = 0.0;
     int fastestHash = 0;
@@ -1046,14 +1177,14 @@ void SampleExample::doCycle()
       }
       
     }
-    printf("exploit\n");
+    
 
     if(hashCode != fastestHash)
     {
       SortingParameters newSetting = rtx->rebuildFromhash(fastestHash);
       rtx->m_SERParameters = newSetting;
       reloadRender();
-      printf("chose faster one\n");
+      
     }
     */
   }
@@ -1074,6 +1205,9 @@ void SampleExample::buildSortingGrid()
 }
 
 #include <ctime>
+
+//int SampleExample::getCubeSideHash()
+
 void SampleExample::SaveSortingGrid()
 {
 
@@ -1103,13 +1237,32 @@ void SampleExample::SaveSortingGrid()
     {
         for(int k = 0; k < grid.gridDimensions.z; k++)
       {
+
+        outstream << "(" << i << "," << j << "," << k <<"):";
+        std::vector<TimingObject>* elements= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        if(elements->empty())
+        {
+          //outstream << noSortHash << "\n";
+        } else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : *elements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+
+        }
         //if grid has no tested Parameters(or very few) then just select no Sorting
         if(grid.gridSpaces[k][j][i].observedData.empty())
         {
           SortingParameters noSorting;
           noSorting.noSort = 1;
           int noSortHash = rtx->hashParameters(noSorting);
-          outstream << "(" << i << "," << j << "," << k <<"):" << noSortHash << "\n";
+          outstream << noSortHash << "\n";
         } else {
           //determine best SortingParameters among those tested
 
@@ -1123,7 +1276,7 @@ void SampleExample::SaveSortingGrid()
               fastestParameters = timing.hashCode;
             }
           }
-          outstream << "(" << i << "," << j << "," << k <<"):" << fastestParameters << "\n";
+          outstream  << fastestParameters << "\n";
         }
       }
     }
@@ -1142,5 +1295,30 @@ void SampleExample::beginSortingGridTraining()
 
 
 
-  printf("Training done\n");
+  
+}
+
+
+
+std::vector<TimingObject>* SampleExample::getCubeSideElements(CubeSide side,GridSpace* currentGrid)
+{
+  if(side == CubeSide::CubeBack)
+  {
+    return &currentGrid->cube.back;
+  } else if(side == CubeSide::CubeDown)
+  {
+    return &currentGrid->cube.down;
+  } else if(side == CubeSide::CubeFront)
+  {
+    return &currentGrid->cube.front;
+  } else if(side == CubeSide::CubeLeft)
+  {
+    return &currentGrid->cube.left;
+  } else if(side == CubeSide::CubeRight)
+  {
+    return &currentGrid->cube.right;
+  } else//Cube up
+  {
+    return &currentGrid->cube.up;
+  }
 }

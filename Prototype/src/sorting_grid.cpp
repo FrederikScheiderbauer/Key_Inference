@@ -56,6 +56,79 @@ SortingParameters createSortingParameters1()
   return result;
 }
 
+
+
+SortingParameters morphSortingParameters(SortingParameters parameters)
+{
+  SortingParameters result;
+
+  std::random_device device;
+  std::mt19937 e2(device());
+  bool isLegal = false;
+  std::uniform_int_distribution<std::mt19937::result_type> dist32(1,32);
+  std::uniform_int_distribution<std::mt19937::result_type> distBool(0,1);
+  std::uniform_real_distribution<> distRand(0.0,1.0);
+
+  
+
+
+  while(!isLegal)
+  {
+    result = parameters;
+    //random number of coherence Bits
+
+    result.numCoherenceBitsTotal = dist32(e2);
+
+    for(int i = 0; i < 1; i++)
+    {
+      float randVal = distRand(e2);
+
+      if(randVal < 1.0/8.0)
+      {
+        result.sortAfterASTraversal &= 1;
+        continue;
+      }
+      if(randVal < 2.0/8.0)
+      {
+        result.estimatedEndpoint &= 1;
+        continue;
+      }
+      if(randVal < 3.0/8.0)
+      {
+        result.realEndpoint &= 1;
+        continue;
+      }
+      if(randVal < 4.0/8.0)
+      {
+        result.noSort &= 1;
+        continue;
+      }
+      if(randVal < 5.0/8.0)
+      {
+        result.hitObject &= 1;
+        continue;
+      }
+      if(randVal < 6.0/8.0)
+      {
+        result.rayDirection &= 1;
+        continue;
+      }
+
+      if(randVal < 7.0/8.0)
+      {
+        result.rayOrigin &= 1;
+        continue;
+      }
+      result.isFinished &= 1;
+    }
+
+  
+
+    isLegal = parametersLegalCheck1(result);
+  }
+  return result; 
+
+}
 /*
 void SortingGrid::buildSortingGrid()
 {

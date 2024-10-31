@@ -1,8 +1,11 @@
 #pragma once
 #include <vector>
 #include <random>
+#include <limits>
 #include "glm/glm.hpp"
 #include "shaders/host_device.h"
+#include "rtx_pipeline.hpp"
+#include <unordered_map>
 
   struct TimingObject
   {
@@ -12,6 +15,10 @@
     int totalCycles;
   };
 
+  struct CubeSideStorage
+  {
+    std::vector<TimingObject> storedElements;
+  };
   struct TimingCube
   {
     std::vector<TimingObject> up;
@@ -22,12 +29,15 @@
     std::vector<TimingObject> back;
   };
 
+
   struct GridSpace
 {
   std::vector<TimingObject> observedData;
   TimingCube cube;
   float adaptiveGridLearningRate = 1.0f;
   GridCube bestKeyCube;
+  float BestPipelineFPS = std::numeric_limits<float>::min();
+  PipelineStorage bestPipeline;
 };
 
 struct Grid
@@ -35,6 +45,8 @@ struct Grid
   std::vector<std::vector<std::vector<GridSpace>>> gridSpaces;
   glm::vec3 gridDimensions;
 };
+
+//SortingParameters mostRecentParameters;
 
 
 
@@ -73,6 +85,7 @@ SortingGrid1::~SortingGrid1()
 */
 
 SortingParameters createSortingParameters1();
+SortingParameters morphSortingParameters(SortingParameters parameters);
 bool parametersLegalCheck1(SortingParameters parameters);
 
 

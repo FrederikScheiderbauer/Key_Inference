@@ -39,7 +39,7 @@ const int NUM_PIPELINES_IN_BUFFER = 2;
 
   struct PipelineStorage
   {
-    VkPipeline pipeline;
+    VkPipeline pipeline{VK_NULL_HANDLE};
     SBTWrapper sbt;
     SortingParameters parameters;
   };
@@ -90,6 +90,10 @@ public:
     false,  //real endpoint/ray length; only known after AS Traversal
     false,  //whether or not the path is finished after this bounce
   };
+
+  SortingParameters mostRecentParameters = m_SERParameters;
+
+  PipelineStorage activeElement;
 std::vector<VkPipeline> m_cachedRtPipelines;
   void activateAsyncPipelineCreation();
   void destroyAsyncPipelineBuffer();
@@ -208,6 +212,6 @@ private:
   
 
 
-  PipelineStorage activeElement;
+  
   
   };

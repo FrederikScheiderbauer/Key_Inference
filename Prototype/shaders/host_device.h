@@ -201,6 +201,21 @@ struct GltfShadeMaterial
   // 42
 };
 
+//Uniform Buffer to tell the gpu how to form the Sorting Key
+struct SortingParameters
+{
+  
+  uint numCoherenceBitsTotal; //1-32 Zero meaning No sorting
+  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
+  //Which Information to use
+  bool noSort;
+  bool hitObject;
+  bool rayOrigin;
+  bool rayDirection;
+  bool estimatedEndpoint;
+  bool realEndpoint;
+  bool isFinished;
+};
 
 // Use with PushConstant
 struct RtxState
@@ -223,8 +238,18 @@ struct RtxState
   vec3 SceneCenter;
   int gridZ;
   float DisplayCubeSize;
+
   int VisualizeSortingGrid;      // 0-NoViz,1-Display Cubes
-  int   _pad1; 
+  uint numCoherenceBitsTotal; //1-32 Zero meaning No sorting
+  int sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
+  //Which Information to use
+  int noSort;
+  int hitObject;
+  int rayOrigin;
+  int rayDirection;
+  int estimatedEndpoint;
+  int realEndpoint;
+  int isFinished;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -400,21 +425,7 @@ struct Inputs
   uint NumberOfLights;
 };
 
-//Uniform Buffer to tell the gpu how to form the Sorting Key
-struct SortingParameters
-{
-  
-  uint numCoherenceBitsTotal; //1-32 Zero meaning No sorting
-  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
-  //Which Information to use
-  bool noSort;
-  bool hitObject;
-  bool rayOrigin;
-  bool rayDirection;
-  bool estimatedEndpoint;
-  bool realEndpoint;
-  bool isFinished;
-};
+
 
 
 struct GridCube

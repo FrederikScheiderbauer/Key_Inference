@@ -100,6 +100,80 @@ void ClosestHit(Ray r,int  depth)
   }
 }
 
+void ClosestHitPush(Ray r,int  depth)
+{
+  uint rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT;
+  prd.hitT      = INFINITY;
+  uint64_t start; 
+  uint64_t end; 
+  int ID = int(gl_LaunchIDEXT.y) * int(gl_LaunchSizeEXT.x) + int(gl_LaunchIDEXT.x);
+  
+  if(rtxState.noSort > 0)
+  {
+        traceRayEXT(topLevelAS,   // acceleration structure
+                rayFlags,     // rayFlags
+                0xFF,         // cullMask
+                0,            // sbtRecordOffset
+                0,            // sbtRecordStride
+                0,            // missIndex
+                r.origin,     // ray origin
+                0.0,          // ray min range
+                r.direction,  // ray direction
+                INFINITY,     // ray max range
+                0             // payload (location = 0)
+    );
+  }
+  else 
+  {
+  /*
+    uint code = createSortingKeyFromSpecialization(r);
+
+
+    if(rtxState.sortAfterASTraversal == 0)
+    {
+      reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+    }
+  */
+
+    hitObjectNV hObj;
+    hitObjectRecordEmptyNV(hObj); //Initialize to an empty hit object
+    hitObjectTraceRayNV(hObj,
+                topLevelAS,
+                rayFlags,
+                0xFF,
+                0,
+                0,
+                0,
+                r.origin,
+                0.0,
+                r.direction,
+                INFINITY,
+                0);
+
+    if(rtxState.hitObject > 0)
+      {
+        reorderThreadNV(hObj);
+      }
+    /*
+    if(rtxState.sortAfterASTraversal > 0)
+    {
+      if(rtxState.hitObject > 0)
+      {
+        reorderThreadNV(hObj, code,_sortingParameters.numCoherenceBitsTotal );
+        //reorderThreadNV(hObj,code,_sortingParameters.numCoherenceBitsTotal);
+      }
+      else
+      {
+        reorderThreadNV(code,_sortingParameters.numCoherenceBitsTotal);
+        //reorderThreadNV(hObj);
+      }
+    }
+*/
+    hitObjectExecuteShaderNV(hObj, 0);
+  }
+}
+
+
 //-----------------------------------------------------------------------
 // Shoot a ray an return the information of the closest hit, in the
 // PtPayload structure (PRD)

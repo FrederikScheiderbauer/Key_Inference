@@ -158,6 +158,7 @@ public:
   CubeFront,
   CubeBack
 };
+  bool useBestParameters = false;;
   CubeSide currentLookDirection;
   nvvk::Buffer m_sunAndSkyBuffer;
   nvvk::Buffer m_profilingBuffer;
@@ -243,7 +244,16 @@ public:
       0,             // Sorting Grid Z Dimension
       1.0,           // Size of the sortingCubes for display
       0,         // Visualization Mode
-      0              // _pad1
+      32, //NumHintBits
+      0, //SortAfterASTraversal
+      0, //noSort;
+      1, //HitObject;
+      0, //rayOrigin;
+      0,  //rayDirection;
+      0,  // estimatedEndpoint;
+      0,  // realEndpoint;
+      0  // isFinished;
+            
   };
 
   SunAndSky m_sunAndSky{
@@ -292,7 +302,7 @@ public:
   std::shared_ptr<SampleGUI> m_gui;
 
 
-  const float timePerCycle = 150.0;
+  const float timePerCycle = 400.0;
 
   float timeRemaining = timePerCycle;
   uint framesThisCycle = 0;
@@ -303,7 +313,6 @@ public:
 
   std::vector<TimingObject> inferenceMeasurements;
 
-float epsilon = 0.1f;
 float constantGridlearningSpeed = 0.2f;
 bool useConstantGridLearning = true;
 
@@ -330,5 +339,10 @@ void SaveSortingGrid();
 
 bool waitingOnPipeline = false;
 
+std::vector<TimingObject>* getCubeSideElements(CubeSide side,GridSpace* currentGrid);
+
+GridCube determineBestTimesCube(GridSpace* currentGrid);
+
+int getCubeSideHash(vec3 CubeCoords, CubeSide side);
 
 };

@@ -37,6 +37,8 @@ public:
   void menuBar();
   void showBusyWindow();
 
+  bool VisualizeSortingGrid = false;
+
 private:
   bool guiCamera();
   bool guiRayTracing();
@@ -73,7 +75,7 @@ private:
   float constantGridlearningSpeed = 0.2f;
 
 
-  bool VisualizeSortingGrid = false;
+  
 
 
 };

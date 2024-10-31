@@ -156,7 +156,8 @@ void ClosestHitParameterized(Ray r,int  depth)
 {
   
 }
-
+void ClosestHitPush(Ray r,int  depth)
+{}
 
 //-----------------------------------------------------------------------
 // Shadow ray - return true if a ray hits anything

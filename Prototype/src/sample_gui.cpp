@@ -388,6 +388,11 @@ bool SampleGUI::guiSortingGrid()
     ImGui::Text(("isFinished: "+ std::to_string(rtx->m_SERParameters.isFinished)).c_str());
 
   GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
+
+  if(!_se->activateParametertesting)
+  {
+    GuiH::Checkbox("always use best Parameters found","",&(_se->useBestParameters));
+  }
   return changed;
 }
 

@@ -257,60 +257,72 @@ bool intersectGrid(const Ray ray)
   //return false;
 }
 
+/*
+    float    low  = rtxState.minHeatmap;
+    float    high = rtxState.maxHeatmap;
+    float    val  = clamp((float(end - start) - low) / (high - low), 0.0, 1.0);
+    
 
-vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t, ivec3 gridSpace)
+    pixelColor    = temperature(val);
+*/
+
+int returnHashCode(vec3 isectPosition,int index)
 {
-  vec3 isectPoint = r.origin + r.direction * t;
-  vec3 normalized_isect = isectPoint - CubePosition;
+
   float epsilon = 0.0001;
-
-  int index = gridSpace.z*(rtxState.gridY*rtxState.gridX) + gridSpace.y*rtxState.gridX + gridSpace.x;
-
   // right Cube side
-  if(normalized_isect.x < rtxState.DisplayCubeSize +epsilon && normalized_isect.x > rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.x < rtxState.DisplayCubeSize +epsilon && isectPosition.x > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].right;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].right;
   }
   //left cube side
-  if(normalized_isect.x < -rtxState.DisplayCubeSize +epsilon && normalized_isect.x > -rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.x < -rtxState.DisplayCubeSize +epsilon && isectPosition.x > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].left;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].left;
   }
 
     // up Cube side
-  if(normalized_isect.y < rtxState.DisplayCubeSize +epsilon && normalized_isect.y > rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.y < rtxState.DisplayCubeSize +epsilon && isectPosition.y > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].up;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].up;
   }
 
     // down Cube side
-  if(normalized_isect.y < -rtxState.DisplayCubeSize +epsilon && normalized_isect.y > -rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.y < -rtxState.DisplayCubeSize +epsilon && isectPosition.y > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].down;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].down;
   }
   //front Cube side
-  if(normalized_isect.z < rtxState.DisplayCubeSize +epsilon && normalized_isect.z > rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.z < rtxState.DisplayCubeSize +epsilon && isectPosition.z > rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].front;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].front;
   }
   //back Cube side
-  if(normalized_isect.z < -rtxState.DisplayCubeSize +epsilon && normalized_isect.z > -rtxState.DisplayCubeSize - epsilon)
+  if(isectPosition.z < -rtxState.DisplayCubeSize +epsilon && isectPosition.z > -rtxState.DisplayCubeSize - epsilon)
   {
-    int hashCode = gridKeys[index].back;
-    float color = float(hashCode)/256.0;
-    return vec3(color);
+    return gridKeys[index].back;
   }
-  return vec3(1.0);
+  return 0;
+}
+vec3 visualizeSortingKey(vec3 CubePosition, Ray r, float t, ivec3 gridSpace)
+{
+
+  float    low  = 0;
+  float    high = 3000;
+
+
+  vec3 isectPoint = r.origin + r.direction * t;
+  vec3 normalized_isect = isectPoint - CubePosition;
+  
+
+  int index = gridSpace.z*(rtxState.gridY*rtxState.gridX) + gridSpace.y*rtxState.gridX + gridSpace.x;
+
+  int hashCode = returnHashCode(normalized_isect,index);
+
+  float val  = clamp((hashCode*10 - low) / (high - low), 0.0, 1.0);
+    
+
+  return temperature(val);
 }
 
 //-----------------------------------------------------------------------
