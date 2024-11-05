@@ -1,5 +1,8 @@
 #include "sorting_grid.hpp"
 #include <random>
+#include <fstream>
+
+using json = nlohmann::json;
 
 bool parametersLegalCheck1(SortingParameters parameters)
 { 
@@ -19,6 +22,7 @@ bool parametersLegalCheck1(SortingParameters parameters)
   {
     return false;
   }
+  
   return true;
 }
 SortingParameters createSortingParameters1()
@@ -127,6 +131,27 @@ SortingParameters morphSortingParameters(SortingParameters parameters)
     isLegal = parametersLegalCheck1(result);
   }
   return result; 
+
+}
+
+void storeSortingGrid1()
+{
+  json j = {
+  {"pi", 3.141},
+  {"happy", true},
+  {"name", "Niels"},
+  {"nothing", nullptr},
+  {"answer", {
+    {"everything", 42}
+  }},
+  {"list", {1, 0, 2}},
+  {"object", {
+    {"currency", "USD"},
+    {"value", 42.99}
+  }}
+};
+
+std::string s = j.dump();
 
 }
 /*

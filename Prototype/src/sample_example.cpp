@@ -44,6 +44,9 @@
 #include "sorting_grid.hpp"
 
 #include "nvml_monitor.hpp"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 
 #if defined(NVP_SUPPORTS_NVML)
@@ -243,7 +246,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   float fastestTime = std::numeric_limits<float>::min();
   int fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsUP = getCubeSideElements(CubeSide::CubeUp,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsUP = &getCubeSideElements(CubeSide::CubeUp,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsUP)
     {
     if(timing.fps > fastestTime)
@@ -256,7 +259,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   fastestTime = std::numeric_limits<float>::min();
   fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsDOWN = getCubeSideElements(CubeSide::CubeDown,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsDOWN = &getCubeSideElements(CubeSide::CubeDown,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsDOWN)
   {
     if(timing.fps > fastestTime)
@@ -269,7 +272,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   fastestTime = std::numeric_limits<float>::min();
   fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsRight = getCubeSideElements(CubeSide::CubeRight,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsRight = &getCubeSideElements(CubeSide::CubeRight,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsRight)
   {
     if(timing.fps > fastestTime)
@@ -282,7 +285,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   fastestTime = std::numeric_limits<float>::min();
   fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsLeft = getCubeSideElements(CubeSide::CubeLeft,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsLeft = &getCubeSideElements(CubeSide::CubeLeft,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsLeft)
   {
     if(timing.fps > fastestTime)
@@ -295,7 +298,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   fastestTime = std::numeric_limits<float>::min();
   fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsFront = getCubeSideElements(CubeSide::CubeFront,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsFront = &getCubeSideElements(CubeSide::CubeFront,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsFront)
   {
     if(timing.fps > fastestTime)
@@ -308,7 +311,7 @@ GridCube SampleExample::determineBestTimesCube(GridSpace* currentGrid)
 
   fastestTime = std::numeric_limits<float>::min();
   fastestHash = 0;
-  std::vector<TimingObject>* cubeSideTimingsback = getCubeSideElements(CubeSide::CubeBack,currentGrid);
+  std::vector<TimingObject>* cubeSideTimingsback = &getCubeSideElements(CubeSide::CubeBack,currentGrid)->storedElements;
   for(TimingObject timing : *cubeSideTimingsback)
   {
     if(timing.fps > fastestTime)
@@ -692,7 +695,9 @@ glm::vec3 clippedCameraPos = glm::vec3(glm::min(glm::max(cameraPos.x,m_rtxState.
 auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
 if(useBestParameters)
 {
-  PipelineStorage bestPipeline = grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x].bestPipeline;
+
+  CubeSideStorage* cubeSide = getCubeSideElements(currentLookDirection,&grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x]);
+  PipelineStorage bestPipeline = cubeSide->bestPipeline;
   if(bestPipeline.pipeline !=VK_NULL_HANDLE)
   {
     vkDeviceWaitIdle(m_device);
@@ -704,15 +709,7 @@ if(useBestParameters)
   m_pRender[m_rndMethod]->setPushContants(m_rtxState);
   // Running the renderer
 
-  /*
-    nvh::Profiler::TimerInfo info;
-  profiler.getTimerInfo("Render Section",info);
-  printf("=============");
-  printf("\n");
-  printf("timerInfo: ");
-  printf(std::to_string((info.gpu.average)).c_str());
-  printf("\n");
-  */
+
   
   auto render_ID = profiler.beginSection("Render Section",cmdBuf);
   m_pRender[m_rndMethod]->run(cmdBuf, render_size, profiler,
@@ -725,144 +722,11 @@ if(useBestParameters)
 
 
 
-  /*
-  double m_seconds = profiler.getMicroSeconds();
-  printf("microseconds: ");
-  printf( std::to_string(m_seconds).c_str());
-  printf("\n");
-
-  uint32_t frames = profiler.getTotalFrames();
-  printf("frames: ");
-  printf( std::to_string(frames).c_str());
-  printf("\n");
-
-  printf("numAveragedValues: ");
-  printf( std::to_string(info.numAveraged).c_str());
-  printf("\n");
-
-  uint32_t subFrame =  profiler.getSubFrame(render_ID);
-
-  printf("subFrame: ");
-  printf( std::to_string(subFrame).c_str());
-  printf("\n");
-  */
-  /*
-  uint32_t subFrame =  profiler.getSubFrame(render_ID);
-  double gpuTime;
-  profiler.getSectionTime(render_ID,subFrame,gpuTime);
-  */
-
-  //info.
-
-
-/*
-START_ENUM(SortingMode)
-  eNoSorting   = 0, //
-  eHitObject   = 1, //
-  eOrigin      = 2, //
-  eReis        = 3, // Sort by Origin Direction
-  eCosta       = 4, // Sort by Direction Origin
-  eAila        = 5, // Sort by Origin Direction Interleaved
-  eTwoPoint    = 6, // Sort by Origin and Termination point after AS traversal
-  eEndPointEst = 7, // Sort by Origin and estimated ray endpoint
-  eEndEstAdaptive = 8, //
-  eInferKey    = 9,
-  eNumSortModes = 10 //  Number of actual Sorting Modes
-END_ENUM();
-*/
 
 int sortMode = *(rtx->getSortingMode());
 
 
 
-/*
-
-
-
-//m_SERParameters = createSortingParameters();
-
-
-
-  const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getTimingBuffer().buffer,0,sizeof(TimingData));
-  TimingData timeData;
-  memcpy(&timeData,data,sizeof(TimingData));
-
-  latest_timeData = timeData;
-  int correctFrame = 0;
-  recoveredFrame[correctFrame] = timeData.frame;
-
-  recovered_time =timeData.full_time;
-  uint64_t one = 1;
-  avg_full_time = (recovered_time/glm::max(timeData.full_time_threads,one));
-
-
-  uint32_t subFrame =  profiler.getSubFrame(render_ID);
-  printf("subFrame: ");
-  printf( std::to_string(subFrame).c_str());
-  printf("\n");
-
-  printf("gpu: ");
-  printf(std::to_string((timeData.frame % 4)).c_str());
-  printf("\n");
-
-  double gpuTime = profiler.getGPUTime(render_ID,1);
-  printf("gpuTime: ");
-  printf(std::to_string((gpuTime)).c_str());
-  printf("\n");
-
-*/
-//receive profiling data from gpu
-/*
-if(rtx->m_enableProfiling)
-{
-  size_t render_extent = render_size.width * render_size.height;
-
-
-  if(render_extent != profilingStats[sortMode].size())
-  {
-    profilingStats[sortMode].resize(render_extent);
-    std::cout << "resizing profiling Buffer" << std::endl;
-  }
-
-
-  if(m_rtxState.frame <1)
-  {
-    std::vector<ProfilingStats> newStats;
-    profilingStats[sortMode] = newStats;
-    profilingStats[sortMode].resize(render_extent);
-    std::cout << "reset profile buffer " << std::endl;
-  }
-
-
-    int row = m_rtxState.frame % render_size.height;
-    size_t size = render_size.width * render_size.height * sizeof(ProfilingStats);
-    size_t offset = row * size;
-
-    const void* profileData = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,size);
-    //const void* data = m_staging.cmdFromBuffer(cmdBuf,m_offscreen.getProfilingBuffer().buffer,0,render_size.width* render_size.height* sizeof(ProfilingStats));
-    
-    ProfilingStats* statsPointer = (ProfilingStats*) profileData;
-    //memcpy(profilingStats.data()+(render_size.width*row),data,size);
-    memcpy(profilingStats[sortMode].data(),statsPointer,size);
-
-    
-
-    //
-  
-    for(uint64_t i = 0; i < size; i++)
-    {
-      float divisor = 1.0f/(float)(m_rtxState.frame +1);
-
-      profilingStats[sortMode][i] = statsPointer[i];
-    }
-    
-}
-*/
-  //m_staging.releaseResources();
-
-//*/
-
-  //
 
   // For automatic brightness tonemapping
   if(m_offscreen.m_tonemapper.autoExposure)
@@ -1049,13 +913,51 @@ SortingParameters SampleExample::createSortingParameters()
   return result;
 }
 
+void SampleExample::beginSortingGridTraining()
+{
+  constantGridlearningSpeed = 1.0f;
+  trainingDirectionIndex = 0;
+  trainingPosition = glm::vec3(0,0,0);
+
+  glm::vec3 trainingStartPosition = calculateGridSpaceCenter(trainingPosition);
+
+  glm::vec3 newCameraDirection = trainingStartPosition+ lookDirections[trainingDirectionIndex];
+  trainingDirectionIndex++;
+
+    //glm::vec3 newCameraDirection = CameraManip.getCenter();
+  CameraManip.setLookat(trainingStartPosition,newCameraDirection,CameraManip.getUp());
+
+}
+
+void SampleExample::iterateTrainingPosition()
+{
+  glm::vec3 result;
+
+  if(trainingPosition.z+1 == grid_z)
+  {
+    if(trainingPosition.y+1 == grid_y)
+    {
+      if(trainingPosition.x+1 == grid_x)
+      {
+        //finished training, each grid cell has been visited and fully tested.
+        performAutomaticTraining = false;
+      } else {
+        trainingPosition = glm::vec3(trainingPosition.x+1,0,0);
+      }
+    } else {
+      trainingPosition = glm::vec3(trainingPosition.x,trainingPosition.y+1,0);
+    }
+  } else {
+    trainingPosition = glm::vec3(trainingPosition.x,trainingPosition.y,trainingPosition.z+1);
+  }
+
+}
 void SampleExample::doCycle()
 {
   //timer
   if(framesThisCycle == 0)
   {
     framesThisCycle++;
-    auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
 
     return;
   }
@@ -1064,7 +966,8 @@ void SampleExample::doCycle()
 
  if(timeRemaining < 0.0)
  {
-  GridWhite = GridWhite & 1;
+
+
   printf(std::to_string(framesThisCycle).c_str());
   printf("\n");
   timeRemaining = timePerCycle;
@@ -1076,7 +979,9 @@ void SampleExample::doCycle()
    //currentGrid = &sortingGrid[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   GridSpace* currentGrid = &grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x];
   
-  std::vector<TimingObject>* observedData = getCubeSideElements(currentLookDirection,currentGrid);
+  CubeSideStorage* cubeSide = getCubeSideElements(currentLookDirection,currentGrid);
+  std::vector<TimingObject>* observedData = &cubeSide->storedElements;
+  
 
   for(int i = 0; i < observedData->size(); i++)
   {
@@ -1086,12 +991,24 @@ void SampleExample::doCycle()
       object->frames += framesThisCycle;
       object->totalCycles += 1;
       object->fps = object->frames*1000/(timePerCycle * object->totalCycles);
+
+      int bestPipelineParameterHash = rtx->hashParameters(cubeSide->bestPipeline.parameters);
       
-      if(object->fps > currentGrid->BestPipelineFPS)
+
+      // when current parameters and the ones of the best pipeline are identical, update best pipeline timing
+      if(hashCode == bestPipelineParameterHash)
       {
-        currentGrid->BestPipelineFPS = object->fps;
-        currentGrid->bestPipeline = rtx->activeElement;
+        cubeSide->bestpipelineFPS = object->fps;
       }
+      else {
+        //if they are different test if current parameters are faster, update bestPipeline if they are
+        if(object->fps > cubeSide->bestpipelineFPS)
+          {
+            cubeSide->bestpipelineFPS = object->fps;
+            cubeSide->bestPipeline = rtx->activeElement;
+          }
+      }
+
       foundOne2 = true;
       break;
     }
@@ -1105,47 +1022,56 @@ void SampleExample::doCycle()
     newTiming.totalCycles = 1;
     observedData->emplace_back(newTiming);
 
-    if(newTiming.fps > currentGrid->BestPipelineFPS)
+    if(newTiming.fps > cubeSide->bestpipelineFPS)
       {
-        currentGrid->BestPipelineFPS = newTiming.fps;
-        currentGrid->bestPipeline = rtx->activeElement;
+        cubeSide->bestpipelineFPS = newTiming.fps;
+        cubeSide->bestPipeline = rtx->activeElement;
+        
       }
   }
+  int minNumberTestedConfigs = 5;
+  int numTestedConfigs = observedData->size();
+  float randValue = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+  float val = glm::max(numTestedConfigs-minNumberTestedConfigs,0) / 5;
 
-/*
-  for(int i = 0; i < currentGrid->observedData.size(); i++)
+  if(performAutomaticTraining && val > randValue)
   {
-    if(hashCode == currentGrid->observedData[i].hashCode)
+    if(trainingDirectionIndex == 0)
     {
-      currentGrid->observedData[i].frames += framesThisCycle;
-      currentGrid->observedData[i].totalCycles += 1;
-      currentGrid->observedData[i].fps = currentGrid->observedData[i].frames*1000/(timePerCycle * currentGrid->observedData[i].totalCycles);
-      
-      foundOne = true;
-      break;
+      iterateTrainingPosition();
     }
+    glm::vec3 newCameraPosition = calculateGridSpaceCenter(trainingPosition);
+    glm::vec3 newCameraDirection = newCameraPosition+ lookDirections[trainingDirectionIndex];
+    trainingDirectionIndex = trainingDirectionIndex+1;
+    if(trainingDirectionIndex ==6)
+    {
+      trainingDirectionIndex = 0;
+    }
+    //glm::vec3 newCameraDirection = CameraManip.getCenter();
+    CameraManip.setLookat(newCameraPosition,newCameraDirection,CameraManip.getUp());
   }
-  if(!foundOne)
-  {
-    TimingObject newTiming;
-    newTiming.hashCode = hashCode;
-    newTiming.frames = framesThisCycle;
-    newTiming.fps = framesThisCycle*1000/timePerCycle;
-    newTiming.totalCycles = 1;
-    currentGrid->observedData.emplace_back(newTiming);
-  }
-*/
+
   framesThisCycle = 0;
   float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
   
-  //with probably epsilon explore the parameter space for new Combinations to test
+  //with probability 1-epsilon, or no pipeline is porea
   float epsilon = useConstantGridLearning ? constantGridlearningSpeed : currentGrid->adaptiveGridLearningRate;
-  if(r < epsilon)
+  if(r > epsilon || rtx->PrebuildPipelineBuffer.empty())
   {
-    //rtx->m_SERParameters= createSortingParameters();
-    //reloadRender();
-    if(!rtx->PrebuildPipelineBuffer.empty())
-    {
+
+
+      printf("exploit\n");
+      if(currentGrid->bestPipeline.pipeline != VK_NULL_HANDLE)
+      {
+        rtx->setNewPipeline(currentGrid->bestPipeline);
+        printf("chose faster one\n");
+      }
+
+
+
+  }
+  //otherwise explore
+  else {
       vkDeviceWaitIdle(m_device);
       rtx->setNewPipeline();
       printf("explore\n");
@@ -1154,39 +1080,6 @@ void SampleExample::doCycle()
         currentGrid->adaptiveGridLearningRate -= currentGrid->adaptiveGridLearningRate/10.0f;
         currentGrid->adaptiveGridLearningRate = glm::max(currentGrid->adaptiveGridLearningRate,0.1f);
       }
-    }
-  }
-  //otherwise exploit
-  else {
-    printf("exploit\n");
-    if(currentGrid->bestPipeline.pipeline != VK_NULL_HANDLE)
-    {
-      rtx->setNewPipeline(currentGrid->bestPipeline);
-      printf("chose faster one\n");
-    }
-    
-    /*
-    float fastestTime = 0.0;
-    int fastestHash = 0;
-    for(TimingObject timing: currentGrid->observedData)
-    {
-      if(timing.fps > fastestTime)
-      {
-        fastestTime = timing.fps;
-        fastestHash = timing.hashCode;
-      }
-      
-    }
-    
-
-    if(hashCode != fastestHash)
-    {
-      SortingParameters newSetting = rtx->rebuildFromhash(fastestHash);
-      rtx->m_SERParameters = newSetting;
-      reloadRender();
-      
-    }
-    */
   }
  }
 
@@ -1211,6 +1104,140 @@ void SampleExample::buildSortingGrid()
 void SampleExample::SaveSortingGrid()
 {
 
+
+  json j2;
+  j2["Grid Dimensions (x,y,z)"] = {grid.gridDimensions.x,grid.gridDimensions.y,grid.gridDimensions.z};
+
+for(int i = 0; i < grid.gridDimensions.x; i++)
+{
+  for(int j = 0; j < grid.gridDimensions.y; j++)
+  {
+    for(int k = 0; k < grid.gridDimensions.z; k++)
+    {
+      std::string s1 = "(" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
+      //CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+      CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[k][j][i]);
+
+      if(cubeside->storedElements.empty())
+      {
+        j2["Observations"][s1]["top"] = 1;
+      } else {
+        float fastestTime = std::numeric_limits<float>::min();
+        int fastestParameters = 0;
+        for(TimingObject timing : cubeside->storedElements)
+        {
+          if(timing.fps > fastestTime)
+          {
+            fastestTime = timing.fps;
+            fastestParameters = timing.hashCode;
+          }
+        }
+        j2["Observations"][s1]["top"] = {fastestParameters,fastestTime};
+      }
+
+      cubeside= getCubeSideElements(CubeDown,&grid.gridSpaces[k][j][i]);
+
+      if(cubeside->storedElements.empty())
+      {
+        j2["Observations"][s1]["bottom"] = 1;
+      } else {
+        float fastestTime = std::numeric_limits<float>::min();
+        int fastestParameters = 0;
+        for(TimingObject timing : cubeside->storedElements)
+        {
+          if(timing.fps > fastestTime)
+          {
+            fastestTime = timing.fps;
+            fastestParameters = timing.hashCode;
+          }
+        }
+        j2["Observations"][s1]["bottom"] = {fastestParameters,fastestTime};
+      }
+
+        cubeside= getCubeSideElements(CubeLeft,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          j2["Observations"][s1]["left"] = 1;
+        }
+        else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          j2["Observations"][s1]["left"] = {fastestParameters,fastestTime};
+        }
+
+        cubeside= getCubeSideElements(CubeRight,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          j2["Observations"][s1]["right"] = 1;
+        }
+        else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          j2["Observations"][s1]["right"] = {fastestParameters,fastestTime};
+        }
+
+        cubeside= getCubeSideElements(CubeFront,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          j2["Observations"][s1]["front"] = 1;
+        }
+        else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          j2["Observations"][s1]["front"] = {fastestParameters,fastestTime};
+        }
+
+
+        cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        if(cubeside->storedElements.empty())
+        {
+          j2["Observations"][s1]["back"] = 1;
+        }
+        else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          j2["Observations"][s1]["back"] = {fastestParameters,fastestTime};
+        }
+    }
+  }
+}
+  std::string s = j2.dump(4);
+
   time_t timestamp = time(&timestamp);
   struct tm * datetime = localtime(&timestamp);
   //printf("%2d_%2d__%2d_%2d_%2d\n",datetime->tm_mday,datetime->tm_mon,datetime->tm_hour,datetime->tm_min,datetime->tm_sec);
@@ -1220,17 +1247,19 @@ void SampleExample::SaveSortingGrid()
   //printf(buffer);
   std::string begin = "C:/Users/Frederik/Key_Inference/Sorting_Grid_Results/";
   std::string filename = std::string(buffer);
-  std::string end = ".txt";
+  std::string end = ".json";
   std::string fullFileName =begin + filename + end;
   std::fstream fs;
   std::ofstream outstream;
 
   outstream.open(fullFileName, std::fstream::out | std::fstream::app);
 
-  outstream << "Grid Dimensions(x,y,z): ";
-  outstream << "(" <<grid.gridDimensions.x <<","<<grid.gridDimensions.y<< "," << grid.gridDimensions.z << ")\n";
+  //outstream << "Grid Dimensions(x,y,z): ";
+  //outstream << "(" <<grid.gridDimensions.x <<","<<grid.gridDimensions.y<< "," << grid.gridDimensions.z << ")\n";
   auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
 
+  outstream << s;
+  /*
   for(int i = 0; i < grid.gridDimensions.x; i++)
   {
       for(int j = 0; j < grid.gridDimensions.y; j++)
@@ -1239,7 +1268,8 @@ void SampleExample::SaveSortingGrid()
       {
 
         outstream << "(" << i << "," << j << "," << k <<"):";
-        std::vector<TimingObject>* elements= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        std::vector<TimingObject>* elements = &cubeside->storedElements;
         if(elements->empty())
         {
           //outstream << noSortHash << "\n";
@@ -1256,6 +1286,8 @@ void SampleExample::SaveSortingGrid()
           }
 
         }
+        */
+      /*
         //if grid has no tested Parameters(or very few) then just select no Sorting
         if(grid.gridSpaces[k][j][i].observedData.empty())
         {
@@ -1278,9 +1310,11 @@ void SampleExample::SaveSortingGrid()
           }
           outstream  << fastestParameters << "\n";
         }
+        
       }
     }
   }
+  */
   outstream.close();
   
   printf("saved to file\n");
@@ -1290,35 +1324,47 @@ void SampleExample::SaveSortingGrid()
 }
 
 
-void SampleExample::beginSortingGridTraining()
-{
 
 
+//CubeSideStorage SampleExa
 
-  
-}
-
-
-
-std::vector<TimingObject>* SampleExample::getCubeSideElements(CubeSide side,GridSpace* currentGrid)
+CubeSideStorage* SampleExample::getCubeSideElements(CubeSide side,GridSpace* currentGrid)
 {
   if(side == CubeSide::CubeBack)
   {
-    return &currentGrid->cube.back;
+    return &currentGrid->cube.backElements;
   } else if(side == CubeSide::CubeDown)
   {
-    return &currentGrid->cube.down;
+    return &currentGrid->cube.downElements;
   } else if(side == CubeSide::CubeFront)
   {
-    return &currentGrid->cube.front;
+    return &currentGrid->cube.frontElements;
   } else if(side == CubeSide::CubeLeft)
   {
-    return &currentGrid->cube.left;
+    return &currentGrid->cube.leftElements;
   } else if(side == CubeSide::CubeRight)
   {
-    return &currentGrid->cube.right;
+    return &currentGrid->cube.rightElements;
   } else//Cube up
   {
-    return &currentGrid->cube.up;
+    return &currentGrid->cube.upElements;
   }
+}
+
+
+glm::vec3 SampleExample::calculateGridSpaceCenter(glm::vec3 gridspace)
+{
+  glm::vec3 result{0.0,0.0,0.0};
+  nvh::GltfScene& scene =  m_scene.getScene();
+
+  glm::vec3 scene_min = scene.m_dimensions.min;
+  glm::vec3 size = scene.m_dimensions.size;
+  glm::vec3 stepX = glm::vec3(1.0,0.0,0.0) *  (size.x/grid_x);
+  glm::vec3 stepY = glm::vec3(0.0,1.0,0.0) * (size.y/grid_y);
+  glm::vec3 stepZ = glm::vec3(0.0,0.0,1.0) * (size.z/grid_z);
+  result = scene_min;
+  result += stepX * gridspace.x + stepY*gridspace.y + stepZ*gridspace.z;
+  result += stepX * 0.5f + stepY* 0.5f + stepZ * 0.5f;
+
+  return result;
 }

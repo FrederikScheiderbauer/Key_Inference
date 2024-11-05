@@ -6,6 +6,7 @@
 #include "shaders/host_device.h"
 #include "rtx_pipeline.hpp"
 #include <unordered_map>
+#include "json.hpp"
 
   struct TimingObject
   {
@@ -18,21 +19,22 @@
   struct CubeSideStorage
   {
     std::vector<TimingObject> storedElements;
+    PipelineStorage bestPipeline;
+    float bestpipelineFPS = 0.0f;
   };
   struct TimingCube
   {
-    std::vector<TimingObject> up;
-    std::vector<TimingObject> down;
-    std::vector<TimingObject> left;
-    std::vector<TimingObject> right;
-    std::vector<TimingObject> front;
-    std::vector<TimingObject> back;
+    CubeSideStorage upElements;
+    CubeSideStorage downElements;
+    CubeSideStorage leftElements;
+    CubeSideStorage rightElements;
+    CubeSideStorage frontElements;
+    CubeSideStorage backElements;
   };
 
 
   struct GridSpace
 {
-  std::vector<TimingObject> observedData;
   TimingCube cube;
   float adaptiveGridLearningRate = 1.0f;
   GridCube bestKeyCube;
@@ -88,4 +90,5 @@ SortingParameters createSortingParameters1();
 SortingParameters morphSortingParameters(SortingParameters parameters);
 bool parametersLegalCheck1(SortingParameters parameters);
 
+void storeSortingGrid1();
 

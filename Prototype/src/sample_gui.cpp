@@ -106,10 +106,9 @@ void SampleGUI::render(nvvk::ProfilerVK& profiler)
     _se->setRenderRegion(VkRect2D{{}, _se->getSize()});
   }
 
-  if(_se->activateParametertesting)
+  if(_se->activateParametertesting || _se->performAutomaticTraining)
   {
     _se->doCycle();
-    
   }
   
 }
@@ -308,10 +307,23 @@ bool SampleGUI::guiSortingGrid()
   bool changed{false};
   auto  Normal = ImGuiH::Control::Flags::Normal;
 
-  if(GuiH::Slider("Grid X", "", &_se->grid_x, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Y", "", &_se->grid_y, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Z", "", &_se->grid_z, nullptr, Normal, 1, _se->MAXGRIDSIZE))
+  if(GuiH::Slider("Grid X", "", &gridX, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Y", "", &gridY, nullptr, Normal, 1, 10) || GuiH::Slider("Grid Z", "", &gridZ, nullptr, Normal, 1, _se->MAXGRIDSIZE))
   {
-    _se->buildSortingGrid();
-    changed = true;
+    if(!_se->performAutomaticTraining)
+    {
+      _se->grid_x = gridX;
+      _se->grid_y = gridY;
+      _se->grid_z = gridZ;
+      _se->buildSortingGrid();
+      changed = true;
+    }
+    else {
+      gridX = _se->grid_x;
+      gridY = _se->grid_y;
+      gridZ = _se->grid_z;
+
+    }
+
   }
   ImGui::Text(("Current Grid Position [x,y,z]: ("+  std::to_string(_se->currentGridSpace.x) + "," +  std::to_string(_se->currentGridSpace.y)  + "," +  std::to_string(_se->currentGridSpace.z) + ")").c_str());
 
@@ -387,12 +399,26 @@ bool SampleGUI::guiSortingGrid()
     ImGui::Text(("realEndpoint: "+ std::to_string(rtx->m_SERParameters.realEndpoint)).c_str());
     ImGui::Text(("isFinished: "+ std::to_string(rtx->m_SERParameters.isFinished)).c_str());
 
-  GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
 
-  if(!_se->activateParametertesting)
+  if( GuiH::Checkbox("perform automatic training","",&_se->performAutomaticTraining))
+  {
+    if(_se->performAutomaticTraining)
+    {_se->beginSortingGridTraining();
+    } else {
+      
+    }
+  }
+
+ 
+  if(!_se->performAutomaticTraining)
+  {
+    GuiH::Checkbox("activate Inference","",&(_se->activateParametertesting));
+  }
+  if(!(_se->activateParametertesting ||_se->performAutomaticTraining))
   {
     GuiH::Checkbox("always use best Parameters found","",&(_se->useBestParameters));
   }
+  
   return changed;
 }
 

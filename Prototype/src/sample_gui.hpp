@@ -71,6 +71,10 @@ private:
 
   int manualSorting{1};
 
+  int gridX{2};
+  int gridY{2};
+  int gridZ{2};
+
   
   float constantGridlearningSpeed = 0.2f;
 

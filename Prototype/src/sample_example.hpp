@@ -132,6 +132,7 @@ public:
   void prepareProfilingData(VkCommandBuffer cmdBuf);
 
   void beginSortingGridTraining();
+  void iterateTrainingPosition();
   void doCycle();
 
   Scene              m_scene;
@@ -204,25 +205,7 @@ public:
   void createStorageBuffer();
   void updateStorageBuffer(const VkCommandBuffer& cmdBuf);
   SortingParameters createSortingParameters();
-/*
-  int   frame;                  // Current frame, start at 0
-  int   maxDepth;               // How deep the path is
-  int   maxSamples;             // How many samples to do per render
-  float fireflyClampThreshold;  // to cut fireflies
-  float hdrMultiplier;          // To brightening the scene
-  int   debugging_mode;         // See DebugMode
-  int   pbrMode;                // 0-Disney, 1-Gltf
-  int   _pad0;                  // vec2 need alignment
-  ivec2 size;                   // rendering size
-  int   minHeatmap;             // Debug mode - heat map
-  int   maxHeatmap;
-  vec3 SceneMax;
-  int gridX;
-  vec3 SceneMin;
-  int gridY;
-  vec3 SceneCenter;
-  int gridZ;
-  */
+
 
   RtxState m_rtxState{
       0,       // frame;
@@ -275,17 +258,6 @@ public:
       0,                    // in_use;
   };
 
-/*
-  uint numCoherenceBitsTotal; //0-32 Zero meaning No sorting
-  bool sortAfterASTraversal; // when to sort|  0: before TraceRay; 1: after TraceRay
-  //Which Information to use
-  bool hitObject;
-  bool rayOrigin;
-  bool rayDirection;
-  bool estimatedEndpoint;
-  bool realEndpoint;
-  bool isFinished;
-  */
 
 
   int         m_maxFrames{100000};
@@ -302,7 +274,8 @@ public:
   std::shared_ptr<SampleGUI> m_gui;
 
 
-  const float timePerCycle = 400.0;
+  const float timePerCycle = 200.0;
+  float timePerCubeSide = 1000.0f;
 
   float timeRemaining = timePerCycle;
   uint framesThisCycle = 0;
@@ -316,10 +289,15 @@ public:
 float constantGridlearningSpeed = 0.2f;
 bool useConstantGridLearning = true;
 
-
+bool performAutomaticTraining{false};
 bool GridWhite = false;
 Grid grid;
 void buildSortingGrid();
+
+int trainingDirectionIndex = 0;
+glm::vec3 trainingPosition = glm::vec3(0,0,0);
+
+glm::vec3 lookDirections[6]{glm::vec3(0,1,0.1),glm::vec3(0,-1,-0.1),glm::vec3(-1,0,0),glm::vec3(1,0,0),glm::vec3(0,0,1),glm::vec3(0,0,-1)};
 
 int grid_x = 2;
 int grid_y = 2;
@@ -339,10 +317,13 @@ void SaveSortingGrid();
 
 bool waitingOnPipeline = false;
 
-std::vector<TimingObject>* getCubeSideElements(CubeSide side,GridSpace* currentGrid);
+CubeSideStorage* getCubeSideElements(CubeSide side,GridSpace* currentGrid);
+CubeSideStorage* getCubeSideStorage(GridSpace* currentGrid);
 
 GridCube determineBestTimesCube(GridSpace* currentGrid);
 
 int getCubeSideHash(vec3 CubeCoords, CubeSide side);
+
+glm::vec3 calculateGridSpaceCenter(glm::vec3 gridSpace);
 
 };
