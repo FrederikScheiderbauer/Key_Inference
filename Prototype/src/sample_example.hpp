@@ -24,6 +24,8 @@
 #include "nvvk/gizmos_vk.hpp"
 #include "renderer.h"
 
+#include "json.hpp"
+using json = nlohmann::json;
 /*
 
  Structure of the application
@@ -310,7 +312,8 @@ glm::ivec3 currentGridSpace;
 
 std::vector<std::vector<std::vector<GridSpace>>> sortingGrid;
 
-
+json fillJsonWithBestResult(json j);
+json fillJsonWithAllResults(json j);
 void SaveSortingGrid();
 
 

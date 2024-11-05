@@ -22,6 +22,10 @@ bool parametersLegalCheck1(SortingParameters parameters)
   {
     return false;
   }
+  if(!(parameters.noSort || parameters.hitObject ||parameters.estimatedEndpoint || parameters.isFinished ||parameters.rayDirection || parameters.rayOrigin || parameters.rayOrigin || parameters.realEndpoint))
+  {
+    return false;
+  }
   
   return true;
 }

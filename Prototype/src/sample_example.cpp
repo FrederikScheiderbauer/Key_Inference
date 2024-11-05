@@ -44,9 +44,7 @@
 #include "sorting_grid.hpp"
 
 #include "nvml_monitor.hpp"
-#include "json.hpp"
 
-using json = nlohmann::json;
 
 
 #if defined(NVP_SUPPORTS_NVML)
@@ -1101,6 +1099,241 @@ void SampleExample::buildSortingGrid()
 
 //int SampleExample::getCubeSideHash()
 
+json SampleExample::fillJsonWithAllResults(json js)
+{
+  std::string s1 = "(" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(0) + ")";
+  CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[0][0][0]);
+for(int i = 0; i < grid.gridDimensions.x; i++)
+  {
+    for(int j = 0; j < grid.gridDimensions.y; j++)
+    {
+      for(int k = 0; k < grid.gridDimensions.z; k++)
+      {
+        std::string s1 = "(" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
+        //CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          js["Observations"][s1]["top"] = 1;
+        } else {
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            
+          js["Observations"][s1]["top"][std::to_string(timing.hashCode)] = timing.fps;
+          }
+        }
+
+        cubeside= getCubeSideElements(CubeDown,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          js["Observations"][s1]["bottom"] = 1;
+        } else {
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            
+            js["Observations"][s1]["bottom"][std::to_string(timing.hashCode)] = timing.fps;
+          }
+        }
+
+          cubeside= getCubeSideElements(CubeLeft,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["left"] = 1;
+          }
+          else {
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              
+              js["Observations"][s1]["left"][std::to_string(timing.hashCode)] = timing.fps;
+            }
+          }
+
+          cubeside= getCubeSideElements(CubeRight,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["right"] = 1;
+          }
+          else {
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              
+              js["Observations"][s1]["right"][std::to_string(timing.hashCode)] = timing.fps;
+            }
+          }
+
+          cubeside= getCubeSideElements(CubeFront,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["front"] = 1;
+          }
+          else {
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              
+              js["Observations"][s1]["front"][std::to_string(timing.hashCode)] = timing.fps;
+            }
+          }
+
+
+          cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["back"] = 1;
+          }
+          else {
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              
+              js["Observations"][s1]["back"][std::to_string(timing.hashCode)] = timing.fps;
+            }
+          }
+      }
+    }
+  }
+
+  return js;
+}
+
+json SampleExample::fillJsonWithBestResult(json js)
+{
+  std::string s1 = "(" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(0) + ")";
+  CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[0][0][0]);
+for(int i = 0; i < grid.gridDimensions.x; i++)
+  {
+    for(int j = 0; j < grid.gridDimensions.y; j++)
+    {
+      for(int k = 0; k < grid.gridDimensions.z; k++)
+      {
+        std::string s1 = "(" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
+        //CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+        CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          js["Observations"][s1]["top"] = 1;
+        } else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          js["Observations"][s1]["top"] = {fastestParameters,fastestTime};
+        }
+
+        cubeside= getCubeSideElements(CubeDown,&grid.gridSpaces[k][j][i]);
+
+        if(cubeside->storedElements.empty())
+        {
+          js["Observations"][s1]["bottom"] = 1;
+        } else {
+          float fastestTime = std::numeric_limits<float>::min();
+          int fastestParameters = 0;
+          for(TimingObject timing : cubeside->storedElements)
+          {
+            if(timing.fps > fastestTime)
+            {
+              fastestTime = timing.fps;
+              fastestParameters = timing.hashCode;
+            }
+          }
+          js["Observations"][s1]["bottom"] = {fastestParameters,fastestTime};
+        }
+
+          cubeside= getCubeSideElements(CubeLeft,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["left"] = 1;
+          }
+          else {
+            float fastestTime = std::numeric_limits<float>::min();
+            int fastestParameters = 0;
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              if(timing.fps > fastestTime)
+              {
+                fastestTime = timing.fps;
+                fastestParameters = timing.hashCode;
+              }
+            }
+            js["Observations"][s1]["left"] = {fastestParameters,fastestTime};
+          }
+
+          cubeside= getCubeSideElements(CubeRight,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["right"] = 1;
+          }
+          else {
+            float fastestTime = std::numeric_limits<float>::min();
+            int fastestParameters = 0;
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              if(timing.fps > fastestTime)
+              {
+                fastestTime = timing.fps;
+                fastestParameters = timing.hashCode;
+              }
+            }
+            js["Observations"][s1]["right"] = {fastestParameters,fastestTime};
+          }
+
+          cubeside= getCubeSideElements(CubeFront,&grid.gridSpaces[k][j][i]);
+
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["front"] = 1;
+          }
+          else {
+            float fastestTime = std::numeric_limits<float>::min();
+            int fastestParameters = 0;
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              if(timing.fps > fastestTime)
+              {
+                fastestTime = timing.fps;
+                fastestParameters = timing.hashCode;
+              }
+            }
+            js["Observations"][s1]["front"] = {fastestParameters,fastestTime};
+          }
+
+
+          cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
+          if(cubeside->storedElements.empty())
+          {
+            js["Observations"][s1]["back"] = 1;
+          }
+          else {
+            float fastestTime = std::numeric_limits<float>::min();
+            int fastestParameters = 0;
+            for(TimingObject timing : cubeside->storedElements)
+            {
+              if(timing.fps > fastestTime)
+              {
+                fastestTime = timing.fps;
+                fastestParameters = timing.hashCode;
+              }
+            }
+            js["Observations"][s1]["back"] = {fastestParameters,fastestTime};
+          }
+      }
+    }
+  }
+
+  return js;
+}
 void SampleExample::SaveSortingGrid()
 {
 
@@ -1108,134 +1341,7 @@ void SampleExample::SaveSortingGrid()
   json j2;
   j2["Grid Dimensions (x,y,z)"] = {grid.gridDimensions.x,grid.gridDimensions.y,grid.gridDimensions.z};
 
-for(int i = 0; i < grid.gridDimensions.x; i++)
-{
-  for(int j = 0; j < grid.gridDimensions.y; j++)
-  {
-    for(int k = 0; k < grid.gridDimensions.z; k++)
-    {
-      std::string s1 = "(" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
-      //CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
-      CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[k][j][i]);
-
-      if(cubeside->storedElements.empty())
-      {
-        j2["Observations"][s1]["top"] = 1;
-      } else {
-        float fastestTime = std::numeric_limits<float>::min();
-        int fastestParameters = 0;
-        for(TimingObject timing : cubeside->storedElements)
-        {
-          if(timing.fps > fastestTime)
-          {
-            fastestTime = timing.fps;
-            fastestParameters = timing.hashCode;
-          }
-        }
-        j2["Observations"][s1]["top"] = {fastestParameters,fastestTime};
-      }
-
-      cubeside= getCubeSideElements(CubeDown,&grid.gridSpaces[k][j][i]);
-
-      if(cubeside->storedElements.empty())
-      {
-        j2["Observations"][s1]["bottom"] = 1;
-      } else {
-        float fastestTime = std::numeric_limits<float>::min();
-        int fastestParameters = 0;
-        for(TimingObject timing : cubeside->storedElements)
-        {
-          if(timing.fps > fastestTime)
-          {
-            fastestTime = timing.fps;
-            fastestParameters = timing.hashCode;
-          }
-        }
-        j2["Observations"][s1]["bottom"] = {fastestParameters,fastestTime};
-      }
-
-        cubeside= getCubeSideElements(CubeLeft,&grid.gridSpaces[k][j][i]);
-
-        if(cubeside->storedElements.empty())
-        {
-          j2["Observations"][s1]["left"] = 1;
-        }
-        else {
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : cubeside->storedElements)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-          j2["Observations"][s1]["left"] = {fastestParameters,fastestTime};
-        }
-
-        cubeside= getCubeSideElements(CubeRight,&grid.gridSpaces[k][j][i]);
-
-        if(cubeside->storedElements.empty())
-        {
-          j2["Observations"][s1]["right"] = 1;
-        }
-        else {
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : cubeside->storedElements)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-          j2["Observations"][s1]["right"] = {fastestParameters,fastestTime};
-        }
-
-        cubeside= getCubeSideElements(CubeFront,&grid.gridSpaces[k][j][i]);
-
-        if(cubeside->storedElements.empty())
-        {
-          j2["Observations"][s1]["front"] = 1;
-        }
-        else {
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : cubeside->storedElements)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-          j2["Observations"][s1]["front"] = {fastestParameters,fastestTime};
-        }
-
-
-        cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
-        if(cubeside->storedElements.empty())
-        {
-          j2["Observations"][s1]["back"] = 1;
-        }
-        else {
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : cubeside->storedElements)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-          j2["Observations"][s1]["back"] = {fastestParameters,fastestTime};
-        }
-    }
-  }
-}
+  j2 = fillJsonWithAllResults(j2);
   std::string s = j2.dump(4);
 
   time_t timestamp = time(&timestamp);
@@ -1254,67 +1360,8 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
 
   outstream.open(fullFileName, std::fstream::out | std::fstream::app);
 
-  //outstream << "Grid Dimensions(x,y,z): ";
-  //outstream << "(" <<grid.gridDimensions.x <<","<<grid.gridDimensions.y<< "," << grid.gridDimensions.z << ")\n";
-  auto rtx = dynamic_cast<RtxPipeline*>(m_pRender[m_rndMethod]);
-
   outstream << s;
-  /*
-  for(int i = 0; i < grid.gridDimensions.x; i++)
-  {
-      for(int j = 0; j < grid.gridDimensions.y; j++)
-    {
-        for(int k = 0; k < grid.gridDimensions.z; k++)
-      {
 
-        outstream << "(" << i << "," << j << "," << k <<"):";
-        CubeSideStorage* cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
-        std::vector<TimingObject>* elements = &cubeside->storedElements;
-        if(elements->empty())
-        {
-          //outstream << noSortHash << "\n";
-        } else {
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : *elements)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-
-        }
-        */
-      /*
-        //if grid has no tested Parameters(or very few) then just select no Sorting
-        if(grid.gridSpaces[k][j][i].observedData.empty())
-        {
-          SortingParameters noSorting;
-          noSorting.noSort = 1;
-          int noSortHash = rtx->hashParameters(noSorting);
-          outstream << noSortHash << "\n";
-        } else {
-          //determine best SortingParameters among those tested
-
-          float fastestTime = std::numeric_limits<float>::min();
-          int fastestParameters = 0;
-          for(TimingObject timing : grid.gridSpaces[k][j][i].observedData)
-          {
-            if(timing.fps > fastestTime)
-            {
-              fastestTime = timing.fps;
-              fastestParameters = timing.hashCode;
-            }
-          }
-          outstream  << fastestParameters << "\n";
-        }
-        
-      }
-    }
-  }
-  */
   outstream.close();
   
   printf("saved to file\n");
