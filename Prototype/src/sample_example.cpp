@@ -1399,7 +1399,7 @@ void SampleExample::SaveSortingGrid()
   char buffer [80];
   strftime(buffer,80,"%d_%m-%H_%M_%S",datetime);
   //printf(buffer);
-  std::string begin = "C:/Users/Frederik/Key_Inference/Sorting_Grid_Results/";
+  std::string begin = "C:/Users/Frederik/Key_Inference_For_SER/Sorting_Grid_Results/";
   std::string filename = std::string(buffer);
   std::string end = ".json";
   std::string fullFileName =begin + filename + end;
