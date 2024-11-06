@@ -873,6 +873,8 @@ void SampleGUI::menuBar()
         _se->loadAssets(openFilename("GLTF Files\0*.gltf;*.glb\0\0").c_str());
       if(ImGui::MenuItem("Open HDR Environment"))
         _se->loadAssets(openFilename("HDR Files\0*.hdr\0\0").c_str());
+      if(ImGui::MenuItem("Load Sorting Grid"))
+        _se->loadAssets(openFilename("Json Files\0*.json\0\0").c_str());
       ImGui::Separator();
       if(ImGui::MenuItem("Quit", "ESC"))
         glfwSetWindowShouldClose(_se->m_window, 1);

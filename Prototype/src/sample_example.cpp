@@ -135,7 +135,35 @@ void SampleExample::loadEnvironmentHdr(const std::string& hdrFilename)
   m_rtxState.fireflyClampThreshold = m_skydome.getIntegral() * 4.f;  // magic
 }
 
+void SampleExample::loadSortingGrid(const std::string& jsonFilename)
+{
 
+std::ifstream f(jsonFilename);
+json j = json::parse(f);
+grid_x = j["Grid Dimensions (x,y,z)"][0];
+grid_y = j["Grid Dimensions (x,y,z)"][1];
+grid_z = j["Grid Dimensions (x,y,z)"][2];
+buildSortingGrid();
+m_gui->gridX = grid_x;
+m_gui->gridY = grid_y;
+m_gui->gridZ = grid_z;
+
+
+
+for(int i = 0; i < grid.gridDimensions.x; i++)
+  {
+    for(int j = 0; j < grid.gridDimensions.y; j++)
+    {
+      for(int k = 0; k < grid.gridDimensions.z; k++)
+      {
+        std::string s1 = "(" + std::to_string(i) + "," + std::to_string(j) + "," + std::to_string(k) + ")";
+        //auto k = j[s1];
+      }
+    }
+  }
+
+
+}
 //--------------------------------------------------------------------------------------------------
 // Loading asset in a separate thread
 // - Used by file drop and menu operation
@@ -177,6 +205,11 @@ void SampleExample::loadAssets(const char* filename)
       m_busyReasonText = "Loading HDR ";
       loadEnvironmentHdr(sfile);
       updateHdrDescriptors();
+    }
+    if(extension == ".json")
+    {
+      m_busyReasonText = "Loading Sorting Grid ";
+      loadSortingGrid(sfile);
     }
 
 
@@ -696,10 +729,17 @@ if(useBestParameters)
 
   CubeSideStorage* cubeSide = getCubeSideElements(currentLookDirection,&grid.gridSpaces[currentGridSpace.z][currentGridSpace.y][currentGridSpace.x]);
   PipelineStorage bestPipeline = cubeSide->bestPipeline;
+  int hash1 = rtx->hashParameters(bestPipeline.parameters);
+  int hash2 = rtx->hashParameters(rtx->m_SERParameters);
+  
   if(bestPipeline.pipeline !=VK_NULL_HANDLE)
   {
-    vkDeviceWaitIdle(m_device);
-    rtx->setNewPipeline(bestPipeline);
+    if(hash1 != hash2)
+    {
+      vkDeviceWaitIdle(m_device);
+      rtx->setNewPipeline(bestPipeline);
+    }
+
   }
   
 }
@@ -1101,7 +1141,6 @@ void SampleExample::buildSortingGrid()
 
 json SampleExample::fillJsonWithAllResults(json js)
 {
-  std::string s1 = "(" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(0) + ")";
   CubeSideStorage* cubeside= getCubeSideElements(CubeUp,&grid.gridSpaces[0][0][0]);
 for(int i = 0; i < grid.gridDimensions.x; i++)
   {
@@ -1115,25 +1154,32 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
 
         if(cubeside->storedElements.empty())
         {
-          js["Observations"][s1]["top"] = 1;
+          js[s1]["top"] = 1;
         } else {
+          std::vector<int> hashcodes;
+          std::vector<float> times;
           for(TimingObject timing : cubeside->storedElements)
           {
-            
-          js["Observations"][s1]["top"][std::to_string(timing.hashCode)] = timing.fps;
+            //hashcodes.emplace_back(timing.hashCode);
+            //times.emplace_back(timing.fps);
+
+
+            js[s1]["top"][std::to_string(timing.hashCode)] = timing.fps;
           }
+          //js[s1]["top"]["hashcodes"] = hashcodes;
+          //js[s1]["top"]["FPS"] = times;
         }
 
         cubeside= getCubeSideElements(CubeDown,&grid.gridSpaces[k][j][i]);
 
         if(cubeside->storedElements.empty())
         {
-          js["Observations"][s1]["bottom"] = 1;
+          js[s1]["bottom"] = 1;
         } else {
           for(TimingObject timing : cubeside->storedElements)
           {
             
-            js["Observations"][s1]["bottom"][std::to_string(timing.hashCode)] = timing.fps;
+            js[s1]["bottom"][std::to_string(timing.hashCode)] = timing.fps;
           }
         }
 
@@ -1141,13 +1187,13 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
 
           if(cubeside->storedElements.empty())
           {
-            js["Observations"][s1]["left"] = 1;
+            js[s1]["left"] = 1;
           }
           else {
             for(TimingObject timing : cubeside->storedElements)
             {
               
-              js["Observations"][s1]["left"][std::to_string(timing.hashCode)] = timing.fps;
+              js[s1]["left"][std::to_string(timing.hashCode)] = timing.fps;
             }
           }
 
@@ -1155,13 +1201,13 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
 
           if(cubeside->storedElements.empty())
           {
-            js["Observations"][s1]["right"] = 1;
+            js[s1]["right"] = 1;
           }
           else {
             for(TimingObject timing : cubeside->storedElements)
             {
               
-              js["Observations"][s1]["right"][std::to_string(timing.hashCode)] = timing.fps;
+              js[s1]["right"][std::to_string(timing.hashCode)] = timing.fps;
             }
           }
 
@@ -1169,13 +1215,13 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
 
           if(cubeside->storedElements.empty())
           {
-            js["Observations"][s1]["front"] = 1;
+            js[s1]["front"] = 1;
           }
           else {
             for(TimingObject timing : cubeside->storedElements)
             {
               
-              js["Observations"][s1]["front"][std::to_string(timing.hashCode)] = timing.fps;
+              js[s1]["front"][std::to_string(timing.hashCode)] = timing.fps;
             }
           }
 
@@ -1183,13 +1229,15 @@ for(int i = 0; i < grid.gridDimensions.x; i++)
           cubeside= getCubeSideElements(CubeBack,&grid.gridSpaces[k][j][i]);
           if(cubeside->storedElements.empty())
           {
-            js["Observations"][s1]["back"] = 1;
+            js[s1]["back"] = 1;
           }
           else {
+            
             for(TimingObject timing : cubeside->storedElements)
             {
               
-              js["Observations"][s1]["back"][std::to_string(timing.hashCode)] = timing.fps;
+              js[s1]["back"][std::to_string(timing.hashCode)] = timing.fps;
+              //js["Observations"][s1]["back"] = {}
             }
           }
       }

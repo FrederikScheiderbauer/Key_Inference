@@ -329,4 +329,5 @@ int getCubeSideHash(vec3 CubeCoords, CubeSide side);
 
 glm::vec3 calculateGridSpaceCenter(glm::vec3 gridSpace);
 
+void loadSortingGrid(const std::string& jsonFilename);
 };

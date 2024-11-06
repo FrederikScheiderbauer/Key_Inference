@@ -44,7 +44,7 @@ SortingParameters createSortingParameters1()
     //random number of coherence Bits
 
     
-    result.numCoherenceBitsTotal = dist32(e2);
+    result.numCoherenceBitsTotal = 32;
     result.sortAfterASTraversal = distBool(e2);
     result.estimatedEndpoint = distBool(e2);
     result.realEndpoint = distBool(e2);

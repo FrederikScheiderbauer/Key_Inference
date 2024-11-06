@@ -36,9 +36,10 @@ public:
   void titleBar();
   void menuBar();
   void showBusyWindow();
-
   bool VisualizeSortingGrid = false;
-
+  int gridX{2};
+  int gridY{2};
+  int gridZ{2};
 private:
   bool guiCamera();
   bool guiRayTracing();
@@ -71,9 +72,7 @@ private:
 
   int manualSorting{1};
 
-  int gridX{2};
-  int gridY{2};
-  int gridZ{2};
+
 
   
   float constantGridlearningSpeed = 0.2f;
