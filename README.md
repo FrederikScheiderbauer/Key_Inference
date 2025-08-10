@@ -6,12 +6,11 @@ git clone --recurse-submodules https://github.com/Motoerdeath/Key_Inference_For_
 
 Compilation:
 
-cd Key_Inference_For_SER/Prototype 
-mkdir build 
-cd build 
-cmake .. 
-cmake --build . 
+-cd Key_Inference_For_SER/Prototype 
+-mkdir build 
+-cd build 
+-cmake .. 
+-cmake --build . 
 
 the executable can then be found in Key_Inference_For_SER/bin_x64/Debug/
 
-TODO: Support Release builds
